@@ -1,0 +1,29 @@
+/* Único archivo de tokens de marca. [CONFIRMAR] reemplazar por el manual de marca. */
+:root {
+  --navy: #0a1b3d;
+  --navy-2: #0f2552;
+  --electric: #1e7bff;
+  --white: #ffffff;
+  --orange: #ff6a1a;
+  --muted: #3a4a6b;
+
+  --node-1: #1e7bff;
+  --node-2: #7b3ff2;
+  --node-3: #ff6a1a;
+  --node-4: #ffb21a;
+  --node-5: #19d3c5;
+
+  --sol-formacion: #7b3ff2;
+  --sol-acompanamiento: #ff6a1a;
+  --sol-programas: #19d3c5;
+  --sol-contactos: #e84393;
+  --sol-informacion: #1e7bff;
+  --sol-eventos: #ffb21a;
+
+  --diag-vender: #1e7bff;
+  --diag-organizar: #ff6a1a;
+  --diag-aprender: #7b3ff2;
+  --diag-conectar: #19d3c5;
+
+  --font: 'Montserrat', system-ui, sans-serif;
+}
