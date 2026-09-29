@@ -67,3 +67,25 @@ export const AREA_TO_SOLUTIONS: Record<AreaId, readonly SolutionId[]> = {
   aprender: ['formacion', 'informacion'],
   conectar: ['eventos', 'programas'],
 };
+
+/**
+ * Cámara + MediaPipe Pose (input=cam). La mano se mide relativa al cuerpo (en anchos de
+ * hombro), así funciona a cualquier distancia. Valores calibrables en vivo con las flechas
+ * y +/- (solo con ?input=cam&debug=1); se guardan en localStorage. [CONFIRMAR] en sitio.
+ */
+export const MEDIAPIPE = {
+  wasmPath: '/mediapipe/wasm',
+  modelPath: '/mediapipe/models/pose_landmarker_full.task',
+  cameraWidth: 1280,
+  cameraHeight: 720,
+  minVisibility: 0.5,
+  /** Ancho de la zona de alcance, en anchos de hombro. Alto = ancho × 2/3. */
+  reachWidth: 2.6,
+  /** Centro de la zona respecto al hombro derecho, en anchos de hombro (x + = derecha en pantalla, y − = arriba). */
+  reachOffsetX: 0.3,
+  reachOffsetY: -0.7,
+  /** Tiempo que se tolera perder la mano antes de marcar tracked=false. */
+  lostGraceMs: 350,
+  /** Filtro One Euro sobre la posición (esta señal es propia, a diferencia de TD). */
+  filter: { minCutoff: 1.2, beta: 0.05, dCutoff: 1.0 },
+} as const;

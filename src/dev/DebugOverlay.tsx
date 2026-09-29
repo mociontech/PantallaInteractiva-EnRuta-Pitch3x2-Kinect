@@ -76,7 +76,7 @@ export function DebugOverlay() {
         <br />
         pantalla {state.screen} · cursor {snap.x},{snap.y} {snap.tracked ? '' : '(sin tracking)'} · dwell {INPUT.dwellSource}
         <br />
-        teclas: 1–8 pantallas · R reset · U desbloquear · T tracked (mouse)
+        teclas: 1–8 pantallas · R reset · U desbloquear · T tracked (mouse) · flechas y +/- calibran la zona (cam)
       </div>
     </div>
   );
