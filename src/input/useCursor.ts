@@ -11,20 +11,20 @@ export function resolveInputKind(): InputKind {
   return import.meta.env.DEV ? 'mouse' : 'cam';
 }
 
-export function createInput(kind: InputKind, debug: boolean): InputProvider {
+export function createInput(kind: InputKind): InputProvider {
   if (kind === 'td') return new TouchDesignerInput();
-  if (kind === 'cam') return new MediaPipeInput(debug);
+  if (kind === 'cam') return new MediaPipeInput();
   return new MouseInput();
 }
 
 /** Arranca el InputProvider elegido por ?input= mientras la app esté montada. */
-export function useInputProvider(debug: boolean): InputKind {
+export function useInputProvider(): InputKind {
   const kind = resolveInputKind();
   useEffect(() => {
-    const provider = createInput(kind, debug);
+    const provider = createInput(kind);
     provider.start();
     return () => provider.stop();
-  }, [kind, debug]);
+  }, [kind]);
   return kind;
 }
 

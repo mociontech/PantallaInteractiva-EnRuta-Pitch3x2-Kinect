@@ -36,7 +36,7 @@ function Current() {
 
 export function App() {
   const debug = isDebug();
-  useInputProvider(debug);
+  useInputProvider();
 
   useEffect(() => {
     document.body.dataset.kiosk = debug ? 'false' : 'true';

@@ -75,7 +75,8 @@ export class MediaPipeInput implements InputProvider {
   private lastY = 0.5;
   private tracked = false;
 
-  constructor(private showPreview: boolean) {}
+  /** Vista de la cámara en una esquina. Se oculta con ?preview=0. */
+  private showPreview = new URLSearchParams(window.location.search).get('preview') !== '0';
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
@@ -146,7 +147,7 @@ export class MediaPipeInput implements InputProvider {
     c.width = 480;
     c.height = 270;
     c.style.cssText =
-      'position:fixed;left:8px;bottom:8px;width:480px;height:270px;z-index:99999;pointer-events:none;border:2px solid #5cf;background:#000';
+      'position:fixed;left:8px;bottom:8px;width:400px;height:225px;z-index:99999;pointer-events:none;border:3px solid #fff;border-radius:12px;background:#000';
     document.body.appendChild(c);
     this.preview = c;
   }
@@ -172,6 +173,20 @@ export class MediaPipeInput implements InputProvider {
       if (wr.y > el.y) continue; // mano por debajo del codo: no está levantada
       const width = Math.abs(rs.x - ls.x);
       if (!best || width > best.width) best = { lms, width };
+    }
+
+    // Para la vista previa: si nadie levanta la mano, mostrar igual a la persona más cercana.
+    let shown = best?.lms ?? null;
+    if (!shown) {
+      let w = 0;
+      for (const lms of result.landmarks) {
+        const a = lms[R_SHOULDER];
+        const b = lms[L_SHOULDER];
+        if (a && b && Math.abs(a.x - b.x) > w) {
+          w = Math.abs(a.x - b.x);
+          shown = lms;
+        }
+      }
     }
 
     let hand: { x: number; y: number } | null = null;
@@ -209,7 +224,7 @@ export class MediaPipeInput implements InputProvider {
     }
     pushSample({ x: this.lastX, y: this.lastY, tracked: this.tracked });
 
-    if (this.preview) this.drawPreview(v, best?.lms ?? null);
+    if (this.preview) this.drawPreview(v, shown);
   };
 
   private drawPreview(v: HTMLVideoElement, lms: NormalizedLandmark[] | null): void {
@@ -220,7 +235,7 @@ export class MediaPipeInput implements InputProvider {
     ctx.scale(-1, 1); // espejo
     ctx.drawImage(v, -c.width, 0, c.width, c.height);
     ctx.restore();
-    if (!lms) return;
+    if (!lms || !visible(lms[R_SHOULDER]) || !visible(lms[L_SHOULDER])) return;
     const rs = lms[R_SHOULDER] as NormalizedLandmark;
     const ls = lms[L_SHOULDER] as NormalizedLandmark;
     const S = Math.abs(rs.x - ls.x);
@@ -235,9 +250,14 @@ export class MediaPipeInput implements InputProvider {
     ctx.strokeRect((cx - bw / 2) * c.width, (cy - bh / 2) * c.height, bw * c.width, bh * c.height);
     const tip = lms[R_INDEX];
     const h = visible(tip) ? tip : (lms[R_WRIST] as NormalizedLandmark);
-    ctx.fillStyle = this.tracked ? '#5f5' : '#f55';
+    const px = (1 - h.x) * c.width;
+    const py = h.y * c.height;
+    ctx.fillStyle = this.tracked ? '#3f3' : '#f44';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc((1 - h.x) * c.width, h.y * c.height, 8, 0, Math.PI * 2);
+    ctx.arc(px, py, 12, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
   }
 }
