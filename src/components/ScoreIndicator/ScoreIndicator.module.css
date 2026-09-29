@@ -1,0 +1,15 @@
+.root { position: relative; display: flex; align-items: center; gap: 16px; font-size: 56px; font-weight: 800; }
+.star { color: var(--orange); font-size: 56px; line-height: 1; }
+.value { line-height: 1; }
+.gain {
+  position: absolute;
+  right: 0;
+  top: -20px;
+  font-size: 48px;
+  color: var(--orange);
+  animation: float 1.2s ease-out forwards;
+}
+@keyframes float {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-70px); opacity: 0; }
+}

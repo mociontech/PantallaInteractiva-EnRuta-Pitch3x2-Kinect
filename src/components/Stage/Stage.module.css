@@ -1,0 +1,16 @@
+.letterbox {
+  position: fixed;
+  inset: 0;
+  background: var(--navy);
+  overflow: hidden;
+}
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1280px;
+  transform-origin: center;
+  background: var(--navy);
+  overflow: hidden;
+}

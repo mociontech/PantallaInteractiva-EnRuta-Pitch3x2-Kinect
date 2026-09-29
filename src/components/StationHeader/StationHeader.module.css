@@ -1,0 +1,25 @@
+.root { display: flex; align-items: flex-start; gap: 32px; color: var(--c); }
+.num {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: 6px solid var(--c);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56px;
+  font-weight: 800;
+  margin-top: 40px;
+}
+.text { display: flex; flex-direction: column; align-items: flex-start; }
+.badge {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  border: 3px solid var(--c);
+  border-radius: 999px;
+  padding: 4px 24px;
+}
+.h1 { margin: 12px 0 0; font-size: 88px; line-height: 1.02; font-weight: 800; }
+.instr { margin: 12px 0 0; font-size: 36px; font-weight: 600; color: var(--white); line-height: 1.2; }

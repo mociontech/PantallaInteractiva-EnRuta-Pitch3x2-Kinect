@@ -1,0 +1,17 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.85);
+}
+.video {
+  position: absolute;
+  left: 320px;
+  top: 200px;
+  width: 1280px;
+  height: 720px;
+  background: #000;
+  border-radius: 24px;
+  object-fit: cover;
+}
+.cta { position: absolute; left: 750px; top: 950px; }

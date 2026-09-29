@@ -1,0 +1,15 @@
+.root { display: flex; flex-direction: column; align-items: center; }
+.svg { overflow: visible; }
+.pot { fill: var(--muted); }
+.stem { fill: var(--node-5); transition: all 0.6s ease; }
+.leaf { fill: var(--node-5); opacity: 0.85; }
+.flower { fill: var(--orange); }
+.bar {
+  width: 1728px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--navy-2);
+  border: 3px solid var(--node-5);
+  overflow: hidden;
+}
+.barFill { height: 100%; background: var(--node-5); transform-origin: left; transition: transform 0.4s ease; }
