@@ -22,9 +22,11 @@ const CIRC = 2 * Math.PI * R;
 function Circle({ number, icon, state, progress = 0 }: Omit<Props, 'title'>) {
   return (
     <div className={`${s.circle} ${s[state]}`}>
-      <svg className={s.ring} width="260" height="260" viewBox="0 0 260 260">
-        <circle cx="130" cy="130" r={R} strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)} />
-      </svg>
+      {progress > 0 && (
+        <svg className={s.ring} width="260" height="260" viewBox="0 0 260 260">
+          <circle cx="130" cy="130" r={R} strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)} />
+        </svg>
+      )}
       <div className={s.content} style={{ color: state === 'completed' ? 'var(--navy)' : undefined }}>
         {state === 'locked' && <Icon name="lock" size={72} />}
         {state === 'completed' && <Icon name="check" size={72} />}

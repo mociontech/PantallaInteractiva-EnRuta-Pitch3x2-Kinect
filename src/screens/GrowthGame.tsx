@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NODES, SOLUTIONS, SOLUTIONS_GRID, TEXT, type SolutionId } from '../config/content';
 import { GAME, SCORE } from '../config/experience';
+import { STATIC_MODE } from '../config/mode';
 import { GrowthPlant } from '../components/GrowthPlant/GrowthPlant';
 import { Icon } from '../components/Icon/Icon';
 import { DwellTarget } from '../interaction/DwellTarget';
@@ -11,11 +12,13 @@ import s from './screens.module.css';
 const node = NODES[4]!;
 const CENTER = { x: 960, y: 640 };
 const RX = 620;
-const RY = 300;
-const SLOTS = 8;
+const RY = 260;
+/** Ángulos (grados) de los puestos alrededor de la planta; se evita abajo (planta y barra). */
+const ANGLES = [-90, -45, 0, 45, 135, 180, 225] as const;
+const SLOTS = ANGLES.length;
 
 function slotPos(slot: number): { x: number; y: number } {
-  const a = (slot / SLOTS) * Math.PI * 2 - Math.PI / 2;
+  const a = ((ANGLES[slot] ?? 0) * Math.PI) / 180;
   return { x: CENTER.x + Math.cos(a) * RX, y: CENTER.y + Math.sin(a) * RY };
 }
 
@@ -32,8 +35,12 @@ function fmt(ms: number): string {
 
 export function GrowthGame() {
   const { state, act } = useSession();
-  const [items, setItems] = useState<Item[]>([]);
-  const [left, setLeft] = useState<number>(GAME.durationMs);
+  const [items, setItems] = useState<Item[]>(
+    STATIC_MODE
+      ? [{ uid: 1, sol: 'formacion', slot: 5 }, { uid: 2, sol: 'eventos', slot: 2 }, { uid: 3, sol: 'programas', slot: 0 }]
+      : [],
+  );
+  const [left, setLeft] = useState<number>(STATIC_MODE ? 20_000 : GAME.durationMs);
   const [ended, setEnded] = useState(false);
   const itemsRef = useRef<Item[]>([]);
   const uid = useRef(0);
@@ -43,6 +50,7 @@ export function GrowthGame() {
 
   // Temporizador y fin del juego.
   useEffect(() => {
+    if (STATIC_MODE) return undefined;
     const t0 = performance.now() + GAME.startDelayMs;
     const iv = window.setInterval(() => {
       const remaining = GAME.durationMs - Math.max(0, performance.now() - t0);
@@ -64,7 +72,7 @@ export function GrowthGame() {
 
   // Spawn: máximo GAME.maxItems a la vez, cada uno vive GAME.itemLifeMs.
   useEffect(() => {
-    if (ended) return undefined;
+    if (ended || STATIC_MODE) return undefined;
     const timers: number[] = [];
     const spawn = window.setInterval(() => {
       const cur = itemsRef.current;

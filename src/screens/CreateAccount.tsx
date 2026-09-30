@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NODES, TEXT } from '../config/content';
+import { STATIC_MODE } from '../config/mode';
 import { CTAButton } from '../components/CTAButton/CTAButton';
 import { Icon } from '../components/Icon/Icon';
 import { StationHeader } from '../components/StationHeader/StationHeader';
@@ -11,9 +12,10 @@ const node = NODES[0]!;
 
 export function CreateAccount() {
   const { act } = useSession();
-  const [shown, setShown] = useState(0); // 0 = nada, 1 = tablet, 2..4 = beneficios
+  const [shown, setShown] = useState(STATIC_MODE ? 4 : 0); // 0 = nada, 1 = tablet, 2..4 = beneficios
 
   useEffect(() => {
+    if (STATIC_MODE) return undefined;
     const ids = [0, 1, 2, 3].map((i) => window.setTimeout(() => setShown(i + 1), 500 + i * 1100));
     return () => ids.forEach((t) => window.clearTimeout(t));
   }, []);

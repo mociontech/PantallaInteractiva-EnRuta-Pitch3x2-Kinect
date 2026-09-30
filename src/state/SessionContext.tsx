@@ -3,6 +3,7 @@ import {
   type ReactNode,
 } from 'react';
 import { TIMING } from '../config/experience';
+import { STATIC_MODE } from '../config/mode';
 import { useDwellEngine } from '../interaction/DwellContext';
 import { changesScreen, computeScore, initialState, reducer, type Action, type SessionState } from './machine';
 
@@ -27,7 +28,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const act = useCallback(
     (a: Action): void => {
-      if (!changesScreen(a)) {
+      if (!changesScreen(a) || STATIC_MODE) {
         dispatch(a);
         return;
       }

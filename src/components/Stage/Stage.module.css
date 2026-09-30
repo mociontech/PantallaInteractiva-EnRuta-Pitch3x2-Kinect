@@ -14,3 +14,5 @@
   background: var(--navy);
   overflow: hidden;
 }
+.staticBox { position: relative; width: 1920px; height: 1280px; }
+.staticStage { position: relative; width: 1920px; height: 1280px; background: var(--navy); overflow: hidden; }

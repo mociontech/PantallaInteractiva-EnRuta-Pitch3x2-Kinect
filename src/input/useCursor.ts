@@ -3,6 +3,7 @@ import type { InputKind, InputProvider } from './InputProvider';
 import { MediaPipeInput } from './MediaPipeInput';
 import { MouseInput } from './MouseInput';
 import { TouchDesignerInput } from './TouchDesignerInput';
+import { STATIC_MODE } from '../config/mode';
 import { getTracked, subscribeTracked } from './cursorStore';
 
 export function resolveInputKind(): InputKind {
@@ -21,6 +22,7 @@ export function createInput(kind: InputKind): InputProvider {
 export function useInputProvider(): InputKind {
   const kind = resolveInputKind();
   useEffect(() => {
+    if (STATIC_MODE) return undefined; // captura: sin cursor ni input
     const provider = createInput(kind);
     provider.start();
     return () => provider.stop();

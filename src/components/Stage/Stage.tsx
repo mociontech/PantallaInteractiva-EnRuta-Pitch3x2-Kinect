@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { STAGE } from '../../config/experience';
+import { STATIC_MODE } from '../../config/mode';
 import { useDwellEngine } from '../../interaction/DwellContext';
 import s from './Stage.module.css';
 
@@ -23,12 +24,12 @@ export function Stage({ children }: { children: ReactNode }) {
   }, [engine]);
 
   return (
-    <div className={s.letterbox}>
+    <div className={STATIC_MODE ? s.staticBox : s.letterbox}>
       <div
         id="stage"
         ref={ref}
-        className={s.stage}
-        style={{ transform: `translate(-50%, -50%) scale(${scale})` }}
+        className={STATIC_MODE ? s.staticStage : s.stage}
+        style={STATIC_MODE ? undefined : { transform: `translate(-50%, -50%) scale(${scale})` }}
       >
         {children}
       </div>

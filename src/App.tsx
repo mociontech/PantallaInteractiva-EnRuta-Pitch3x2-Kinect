@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { STATIC_MODE, requestedScreen } from './config/mode';
 import { KinectCursor } from './components/KinectCursor/KinectCursor';
 import { Stage } from './components/Stage/Stage';
 import { TransitionOverlay } from './components/TransitionOverlay/TransitionOverlay';
@@ -25,7 +26,12 @@ const SCREENS: Record<Screen, () => JSX.Element> = {
 };
 
 function Current() {
-  const { state, transitioning } = useSession();
+  const { state, transitioning, act } = useSession();
+  useEffect(() => {
+    const to = requestedScreen();
+    if (to) act({ type: 'DEBUG_JUMP', to });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const View = SCREENS[state.screen];
   return (
     <>
@@ -42,6 +48,7 @@ export function App() {
 
   useEffect(() => {
     document.body.dataset.kiosk = debug ? 'false' : 'true';
+    document.body.dataset.static = STATIC_MODE ? 'true' : 'false';
     const noMenu = (e: Event): void => e.preventDefault();
     window.addEventListener('contextmenu', noMenu);
     return () => window.removeEventListener('contextmenu', noMenu);
@@ -52,9 +59,9 @@ export function App() {
       <Stage>
         <SessionProvider>
           <Current />
-          {debug && <DebugOverlay />}
+          {debug && !STATIC_MODE && <DebugOverlay />}
         </SessionProvider>
-        <KinectCursor />
+        {!STATIC_MODE && <KinectCursor />}
       </Stage>
     </DwellProvider>
   );

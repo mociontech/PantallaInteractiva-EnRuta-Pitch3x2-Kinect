@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NODES, ROUTE_SOLUTIONS, SOLUTIONS, TEXT } from '../config/content';
 import { AREA_TO_SOLUTIONS } from '../config/experience';
+import { STATIC_MODE } from '../config/mode';
 import { CTAButton } from '../components/CTAButton/CTAButton';
 import { Icon } from '../components/Icon/Icon';
 import { NodeButton } from '../components/NodeButton/NodeButton';
@@ -20,9 +21,10 @@ const PILL_GAP = 40;
 
 export function DiscoverRoute() {
   const { state, act } = useSession();
-  const [drawn, setDrawn] = useState(0); // ramas dibujadas 0..5
+  const [drawn, setDrawn] = useState(STATIC_MODE ? ROUTE_SOLUTIONS.length : 0); // ramas dibujadas 0..5
 
   useEffect(() => {
+    if (STATIC_MODE) return undefined;
     const ids = ROUTE_SOLUTIONS.map((_, i) => window.setTimeout(() => setDrawn(i + 1), 600 + i * 700));
     return () => ids.forEach((t) => window.clearTimeout(t));
   }, []);

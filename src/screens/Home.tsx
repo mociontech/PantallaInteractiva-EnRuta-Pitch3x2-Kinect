@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NODES, TEXT } from '../config/content';
+import { STATIC_MODE } from '../config/mode';
 import { NodeButton, type NodeState } from '../components/NodeButton/NodeButton';
 import { RouteLine, type Point } from '../components/RouteLine/RouteLine';
 import { nextStation } from '../state/machine';
@@ -23,7 +24,7 @@ export function Home() {
   const next = nextStation(state);
   const target = Math.min(1, c / 4);
   // La línea avanza hasta el siguiente nodo al entrar.
-  const [progress, setProgress] = useState(Math.max(0, (c - 1) / 4));
+  const [progress, setProgress] = useState(STATIC_MODE ? target : Math.max(0, (c - 1) / 4));
   useEffect(() => {
     const t = window.setTimeout(() => setProgress(target), 300);
     return () => window.clearTimeout(t);

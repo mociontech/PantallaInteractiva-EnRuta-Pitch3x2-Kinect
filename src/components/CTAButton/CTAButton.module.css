@@ -19,6 +19,6 @@
   transform: scaleX(0);
 }
 .secondary .fill { background: var(--electric); opacity: 0.6; }
-.label { position: relative; font-size: 48px; font-weight: 800; }
+.label { position: relative; font-size: 48px; font-weight: 800; line-height: 1.1; text-align: center; padding: 0 28px; }
 .hover { transform: scale(1.05); }
 .disabled { opacity: 0.35; }
