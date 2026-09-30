@@ -5,6 +5,7 @@ import { TransitionOverlay } from './components/TransitionOverlay/TransitionOver
 import { DebugOverlay, isDebug } from './dev/DebugOverlay';
 import { DwellProvider } from './interaction/DwellContext';
 import { useInputProvider } from './input/useCursor';
+import { CalibrationScreen } from './screens/Calibration';
 import { CreateAccount } from './screens/CreateAccount';
 import { Diagnosis } from './screens/Diagnosis';
 import { DiscoverRoute } from './screens/DiscoverRoute';
@@ -12,13 +13,14 @@ import { Frame } from './screens/Frame';
 import { GrowthGame } from './screens/GrowthGame';
 import { Home } from './screens/Home';
 import { Idle } from './screens/Idle';
+import { Instructions } from './screens/Instructions';
 import { Result } from './screens/Result';
 import { Solutions } from './screens/Solutions';
 import { SessionProvider, useSession } from './state/SessionContext';
 import type { Screen } from './state/machine';
 
 const SCREENS: Record<Screen, () => JSX.Element> = {
-  idle: Idle, home: Home, s1: CreateAccount, s2: Diagnosis, s3: DiscoverRoute,
+  idle: Idle, instructions: Instructions, calibration: CalibrationScreen, home: Home, s1: CreateAccount, s2: Diagnosis, s3: DiscoverRoute,
   s4: Solutions, s5: GrowthGame, result: Result,
 };
 

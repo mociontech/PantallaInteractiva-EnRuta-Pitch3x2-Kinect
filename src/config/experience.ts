@@ -2,6 +2,14 @@ import type { AreaId, SolutionId } from './content';
 
 export const STAGE = { width: 1920, height: 1280 } as const;
 
+/**
+ * Archivo de diseño de impresión: 8503,937 × 5669,291 px (3 m × 2 m a 72 ppp), 3:2.
+ * 1 px de referencia del Stage = PRINT_SCALE px del archivo de diseño (≈ 4,43).
+ * La resolución nativa de la pantalla no cambia nada: el Stage escala a cualquier 3:2.
+ */
+export const PRINT = { width: 8503.937, height: 5669.291 } as const;
+export const PRINT_SCALE = PRINT.width / STAGE.width;
+
 export const LAYOUT = {
   header: 120,
   stage: 960,

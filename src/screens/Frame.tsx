@@ -8,7 +8,7 @@ import s from './screens.module.css';
 /** Header (120 px, sin interactivos) y footer (200 px) fijos en todas las pantallas menos IDLE. */
 export function Frame() {
   const { state, score } = useSession();
-  if (state.screen === 'idle') return null;
+  if (state.screen === 'idle' || state.screen === 'instructions' || state.screen === 'calibration') return null;
   return (
     <>
       <div

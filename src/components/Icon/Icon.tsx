@@ -2,7 +2,7 @@
 const GLYPHS: Record<string, string> = {
   user: '☺', chart: '▲', route: '⤳', grid: '▦', plant: '✿', book: '▤', expert: '★',
   flag: '⚑', network: '⚭', info: 'i', calendar: '▣', gear: '⚙', bolt: '↯', mail: '✉',
-  list: '≡', lock: '🔒', check: '✓',
+  list: '≡', hand: '✋', target: '◎', lock: '🔒', check: '✓',
 };
 
 export function Icon({ name, size = 64 }: { name: string; size?: number }) {

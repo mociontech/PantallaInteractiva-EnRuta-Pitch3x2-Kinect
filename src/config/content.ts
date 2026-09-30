@@ -121,6 +121,31 @@ export const TEXT = {
     countdown: (s: number) => `Vuelve al inicio en ${s} s`,
   },
 
+  instructions: {
+    title: 'Controla con tu mano',
+    steps: [
+      { icon: 'user', text: 'Párate frente a la pantalla' },
+      { icon: 'hand', text: 'Levanta tu mano derecha' },
+      { icon: 'target', text: 'Mantén el cursor sobre un botón para elegirlo' },
+    ],
+    practice: 'Practica: mantén el cursor aquí',
+    practiceDone: '¡Muy bien!',
+    cta: 'Entendido',
+  },
+  calibration: {
+    title: 'Calibración',
+    intro: 'Levanta tu mano derecha y apunta a cada punto.',
+    step: (n: number, total: number) => `Punto ${n} de ${total}: mantén la mano quieta`,
+    lost: 'No veo tu mano derecha. Levántala.',
+    verify: 'Prueba: el cursor debe llegar a las cuatro esquinas.',
+    save: 'Guardar',
+    retry: 'Repetir',
+    saved: 'Calibración guardada',
+    failed: 'No se pudo calcular. Repite la calibración.',
+    onlyCam: 'La calibración solo aplica al input de cámara (?input=cam).',
+    exit: 'Esc para salir',
+  },
+
   cta: { continue: 'Continuar', back: 'Volver' },
   progress: (n: number) => `${n} de 5`,
   inactivity: { title: '¿Sigues ahí?', cta: 'Continuar' },

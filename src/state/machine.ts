@@ -1,11 +1,13 @@
 import type { AreaId, SolutionId } from '../config/content';
 import { SCORE } from '../config/experience';
 
-export type Screen = 'idle' | 'home' | 's1' | 's2' | 's3' | 's4' | 's5' | 'result';
+export type Screen = 'idle' | 'instructions' | 'calibration' | 'home' | 's1' | 's2' | 's3' | 's4' | 's5' | 'result';
 
 /** Tabla de transiciones explícita. 'idle' desde cualquier pantalla = abandono/inactividad. */
 export const TRANSITIONS: Record<Screen, readonly Screen[]> = {
-  idle: ['home'],
+  idle: ['instructions', 'calibration'],
+  instructions: ['home', 'idle'],
+  calibration: ['idle'],
   home: ['s1', 's2', 's3', 's4', 's5', 'idle'],
   s1: ['home', 'idle'],
   s2: ['home', 'idle'],
@@ -15,7 +17,10 @@ export const TRANSITIONS: Record<Screen, readonly Screen[]> = {
   result: ['idle'],
 };
 
-export const SCREEN_ORDER: readonly Screen[] = ['idle', 'home', 's1', 's2', 's3', 's4', 's5', 'result'];
+/** Orden para los atajos de debug: 1–9 y 0 (décima). */
+export const SCREEN_ORDER: readonly Screen[] = [
+  'idle', 'instructions', 'home', 's1', 's2', 's3', 's4', 's5', 'result', 'calibration',
+];
 
 export interface SessionState {
   screen: Screen;
@@ -31,6 +36,7 @@ export interface SessionState {
 
 export type Action =
   | { type: 'START' }
+  | { type: 'CALIBRATE' }
   | { type: 'GO'; to: Screen }
   | { type: 'COMPLETE_STATION'; n: number }
   | { type: 'TOGGLE_AREA'; area: AreaId }
@@ -43,7 +49,7 @@ export type Action =
 /** Acciones que cambian de pantalla (se ejecutan con TransitionOverlay). */
 export function changesScreen(a: Action): boolean {
   return (
-    a.type === 'START' || a.type === 'GO' || a.type === 'COMPLETE_STATION' ||
+    a.type === 'START' || a.type === 'CALIBRATE' || a.type === 'GO' || a.type === 'COMPLETE_STATION' ||
     a.type === 'RESET' || a.type === 'DEBUG_JUMP'
   );
 }
@@ -81,9 +87,10 @@ export function computeScore(s: SessionState): number {
 }
 
 export function lastStep(s: SessionState): number {
-  if (s.screen === 'home' || s.screen === 'idle') return s.completed.length === 0 ? 0 : s.completed.length;
   if (s.screen === 'result') return 6;
-  return Number(s.screen.slice(1));
+  const m = /^s(\d)$/.exec(s.screen);
+  if (m) return Number(m[1]);
+  return s.completed.length;
 }
 
 function go(s: SessionState, to: Screen): SessionState {
@@ -95,17 +102,20 @@ export function reducer(s: SessionState, a: Action): SessionState {
   switch (a.type) {
     case 'START':
       if (s.screen !== 'idle') return s;
-      return { ...initialState, screen: 'home', sessionId: newSessionId(), startedAt: Date.now() };
+      return { ...initialState, screen: 'instructions', sessionId: newSessionId(), startedAt: Date.now() };
+
+    case 'CALIBRATE':
+      return go(s, 'calibration');
 
     case 'GO': {
       // Solo se puede entrar a la siguiente estación disponible.
-      if (s.screen === 'home' && a.to.startsWith('s') && Number(a.to.slice(1)) !== nextStation(s)) return s;
+      const st = /^s(\d)$/.exec(a.to);
+      if (s.screen === 'home' && st && Number(st[1]) !== nextStation(s)) return s;
       return go(s, a.to);
     }
 
     case 'COMPLETE_STATION': {
-      const current = Number(s.screen.slice(1));
-      if (s.screen === 'home' || current !== a.n) return s;
+      if (s.screen !== `s${a.n}`) return s;
       const completed = s.completed.includes(a.n) ? s.completed : [...s.completed, a.n];
       if (a.n === 5) return { ...go(s, 'result'), completed, endedAt: Date.now() };
       return { ...go(s, 'home'), completed };

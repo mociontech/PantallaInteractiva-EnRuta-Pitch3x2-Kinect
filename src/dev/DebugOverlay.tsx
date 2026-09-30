@@ -48,8 +48,8 @@ export function DebugOverlay() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const k = e.key.toLowerCase();
-      if (k >= '1' && k <= '8') {
-        const to = SCREEN_ORDER[Number(k) - 1] as Screen;
+      if (k >= '0' && k <= '9') {
+        const to = SCREEN_ORDER[k === '0' ? 9 : Number(k) - 1] as Screen;
         act({ type: 'DEBUG_JUMP', to });
       } else if (k === 'r') act({ type: 'RESET' });
       else if (k === 'u') act({ type: 'DEBUG_UNLOCK_ALL' });
@@ -76,7 +76,7 @@ export function DebugOverlay() {
         <br />
         pantalla {state.screen} · cursor {snap.x},{snap.y} {snap.tracked ? '' : '(sin tracking)'} · dwell {INPUT.dwellSource}
         <br />
-        teclas: 1–8 pantallas · R reset · U desbloquear · T tracked (mouse) · flechas y +/- calibran la zona (cam)
+        teclas: 1–9,0 pantallas · R reset · U desbloquear · T tracked (mouse) · flechas y +/- calibran la zona (cam)
       </div>
     </div>
   );

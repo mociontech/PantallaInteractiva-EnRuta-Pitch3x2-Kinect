@@ -1,5 +1,6 @@
 import { FilesetResolver, PoseLandmarker, type NormalizedLandmark } from '@mediapipe/tasks-vision';
 import { MEDIAPIPE } from '../config/experience';
+import { calibration, rawHand, setCalibration } from './calibration';
 import type { InputProvider } from './InputProvider';
 import { link, pushSample } from './cursorStore';
 import { OneEuro } from './oneEuro';
@@ -11,44 +12,6 @@ const R_ELBOW = 14;
 const R_WRIST = 16;
 const R_INDEX = 20;
 
-interface Calibration {
-  reachWidth: number;
-  offsetX: number;
-  offsetY: number;
-}
-
-const CAL_KEY = 'enruta.cam.calibration';
-
-function loadCalibration(): Calibration {
-  const def: Calibration = {
-    reachWidth: MEDIAPIPE.reachWidth,
-    offsetX: MEDIAPIPE.reachOffsetX,
-    offsetY: MEDIAPIPE.reachOffsetY,
-  };
-  try {
-    const raw = localStorage.getItem(CAL_KEY);
-    if (!raw) return def;
-    const p: unknown = JSON.parse(raw);
-    if (typeof p === 'object' && p !== null) {
-      const o = p as Record<string, unknown>;
-      if (typeof o.reachWidth === 'number' && typeof o.offsetX === 'number' && typeof o.offsetY === 'number') {
-        return { reachWidth: o.reachWidth, offsetX: o.offsetX, offsetY: o.offsetY };
-      }
-    }
-  } catch {
-    /* sin localStorage: valores por defecto */
-  }
-  return def;
-}
-
-function saveCalibration(c: Calibration): void {
-  try {
-    localStorage.setItem(CAL_KEY, JSON.stringify(c));
-  } catch {
-    /* ignorar */
-  }
-}
-
 function visible(l: NormalizedLandmark | undefined): l is NormalizedLandmark {
   return l !== undefined && (l.visibility ?? 1) >= MEDIAPIPE.minVisibility;
 }
@@ -56,7 +19,8 @@ function visible(l: NormalizedLandmark | undefined): l is NormalizedLandmark {
 /**
  * Cámara web + MediaPipe Pose -> mismo contrato {x, y, tracked} que TouchDesigner.
  * Mapeo: posición de la mano derecha relativa al hombro derecho, en anchos de hombro,
- * dentro de una zona de alcance 3:2 -> 0..1. La imagen se espeja (derecha del usuario = derecha en pantalla).
+ * dentro de la zona de alcance calibrada (src/input/calibration.ts) -> 0..1.
+ * La imagen se espeja (derecha del usuario = derecha en pantalla).
  */
 export class MediaPipeInput implements InputProvider {
   readonly kind = 'cam' as const;
@@ -68,29 +32,33 @@ export class MediaPipeInput implements InputProvider {
   private stopped = false;
   private lastVideoTime = -1;
   private lastSeen = 0;
-  private cal = loadCalibration();
   private fx = new OneEuro(MEDIAPIPE.filter.minCutoff, MEDIAPIPE.filter.beta, MEDIAPIPE.filter.dCutoff);
   private fy = new OneEuro(MEDIAPIPE.filter.minCutoff, MEDIAPIPE.filter.beta, MEDIAPIPE.filter.dCutoff);
   private lastX = 0.5;
   private lastY = 0.5;
   private tracked = false;
-
   /** Vista de la cámara en una esquina. Se oculta con ?preview=0. */
   private showPreview = new URLSearchParams(window.location.search).get('preview') !== '0';
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
-    const c = this.cal;
+    const c = { ...calibration };
     switch (e.key) {
       case 'ArrowLeft': c.offsetX -= step; break;
       case 'ArrowRight': c.offsetX += step; break;
       case 'ArrowUp': c.offsetY -= step; break;
       case 'ArrowDown': c.offsetY += step; break;
-      case '+': case '=': c.reachWidth = Math.max(0.8, c.reachWidth - 0.1); break; // zona menor = más sensible
-      case '-': c.reachWidth += 0.1; break;
+      case '+': case '=': // zona menor = más sensible
+        c.reachWidth = Math.max(0.8, c.reachWidth - 0.1);
+        c.reachHeight = Math.max(0.5, c.reachHeight - 0.067);
+        break;
+      case '-':
+        c.reachWidth += 0.1;
+        c.reachHeight += 0.067;
+        break;
       default: return;
     }
-    saveCalibration(c);
+    setCalibration(c, true);
   };
 
   async start(): Promise<void> {
@@ -139,6 +107,7 @@ export class MediaPipeInput implements InputProvider {
     this.landmarker = null;
     this.video = null;
     this.preview = null;
+    rawHand.valid = false;
     pushSample({ x: 0.5, y: 0.5, tracked: false });
   }
 
@@ -162,7 +131,7 @@ export class MediaPipeInput implements InputProvider {
     const now = performance.now();
     const result = lm.detectForVideo(v, now);
 
-    // Persona objetivo: la más cercana (hombros más anchos) con la mano derecha levantada; si no, ninguna.
+    // Persona objetivo: la más cercana (hombros más anchos) con la mano derecha levantada.
     let best: { lms: NormalizedLandmark[]; width: number } | null = null;
     for (const lms of result.landmarks) {
       const rs = lms[R_SHOULDER];
@@ -197,17 +166,18 @@ export class MediaPipeInput implements InputProvider {
       const tip = lms[R_INDEX];
       const h = visible(tip) ? tip : (lms[R_WRIST] as NormalizedLandmark);
       const S = Math.max(0.02, width);
-      // Espejo en X; Y escalada a "unidades de ancho".
-      const hx = 1 - h.x;
-      const hy = h.y * aspect;
-      const cx = 1 - rs.x + this.cal.offsetX * S;
-      const cy = rs.y * aspect + this.cal.offsetY * S;
-      const boxW = this.cal.reachWidth * S;
-      const boxH = (boxW * 2) / 3;
+      // Espejo en X; Y escalada a "unidades de ancho"; ambas en anchos de hombro desde el hombro derecho.
+      const u = (1 - h.x - (1 - rs.x)) / S;
+      const vv = ((h.y - rs.y) * aspect) / S;
+      rawHand.u = u;
+      rawHand.v = vv;
+      rawHand.valid = true;
       hand = {
-        x: Math.min(1, Math.max(0, (hx - cx) / boxW + 0.5)),
-        y: Math.min(1, Math.max(0, (hy - cy) / boxH + 0.5)),
+        x: Math.min(1, Math.max(0, (u - calibration.offsetX) / calibration.reachWidth + 0.5)),
+        y: Math.min(1, Math.max(0, (vv - calibration.offsetY) / calibration.reachHeight + 0.5)),
       };
+    } else {
+      rawHand.valid = false;
     }
 
     if (hand) {
@@ -241,10 +211,10 @@ export class MediaPipeInput implements InputProvider {
     const S = Math.abs(rs.x - ls.x);
     const aspect = v.videoHeight / v.videoWidth;
     // Zona de alcance en coordenadas de imagen espejada.
-    const cx = 1 - rs.x + this.cal.offsetX * S;
-    const cy = rs.y + (this.cal.offsetY * S) / aspect;
-    const bw = this.cal.reachWidth * S;
-    const bh = ((bw * 2) / 3) / aspect;
+    const cx = 1 - rs.x + calibration.offsetX * S;
+    const cy = rs.y + (calibration.offsetY * S) / aspect;
+    const bw = calibration.reachWidth * S;
+    const bh = (calibration.reachHeight * S) / aspect;
     ctx.strokeStyle = '#ff0';
     ctx.lineWidth = 2;
     ctx.strokeRect((cx - bw / 2) * c.width, (cy - bh / 2) * c.height, bw * c.width, bh * c.height);

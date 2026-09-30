@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NODES, TEXT } from '../config/content';
 import { TIMING } from '../config/experience';
 import { CTAButton } from '../components/CTAButton/CTAButton';
@@ -9,6 +10,15 @@ import s from './screens.module.css';
 export function Idle() {
   const { act } = useSession();
   const tracked = useTracked();
+
+  // Operador: tecla C abre la calibración.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key.toLowerCase() === 'c') act({ type: 'CALIBRATE' });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [act]);
   return (
     <div className={s.screen}>
       <div className={s.logoBox} style={{ ...at(96, 80, 420, 130) }}>
