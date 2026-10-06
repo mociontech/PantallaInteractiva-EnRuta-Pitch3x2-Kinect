@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { TEXT } from '../config/content';
 import { STAGE } from '../config/experience';
+import { Background } from '../components/Background/Background';
 import { CTAButton } from '../components/CTAButton/CTAButton';
 import { Icon } from '../components/Icon/Icon';
 import {
@@ -126,9 +127,10 @@ export function CalibrationScreen() {
   if (link.kind !== 'cam') {
     return (
       <div className={s.screen}>
-        <h1 className={s.display} style={{ ...at(96, 150, 1728), fontSize: 88 }}>{TEXT.calibration.title}</h1>
-        <p className={s.h2} style={at(96, 400, 1728)}>{TEXT.calibration.onlyCam}</p>
-        <p className={s.t36} style={at(96, 1150)}>{TEXT.calibration.exit}</p>
+        <Background kind="plain" />
+        <h1 className={s.h1} style={{ ...at(96, 150, 1728), fontSize: 88 }}>{TEXT.calibration.title}</h1>
+        <p className={s.t37} style={at(96, 400, 1728)}>{TEXT.calibration.onlyCam}</p>
+        <p className={s.t37} style={at(96, 1150)}>{TEXT.calibration.exit}</p>
       </div>
     );
   }
@@ -140,9 +142,10 @@ export function CalibrationScreen() {
 
   return (
     <div className={s.screen}>
-      <h1 className={s.display} style={{ ...at(96, 150, 1728), fontSize: 88 }}>{TEXT.calibration.title}</h1>
-      <p className={s.h2} style={at(96, 270, 1728)}>{phase === 'capture' && step === 0 && !failed ? TEXT.calibration.intro : message}</p>
-      <p className={s.t36} style={at(96, 1150)}>{TEXT.calibration.exit}</p>
+      <Background kind="plain" />
+      <h1 className={s.h1} style={{ ...at(96, 150, 1728), fontSize: 88 }}>{TEXT.calibration.title}</h1>
+      <p className={s.t37} style={at(96, 270, 1728)}>{phase === 'capture' && step === 0 && !failed ? TEXT.calibration.intro : message}</p>
+      <p className={s.t37} style={at(96, 1150)}>{TEXT.calibration.exit}</p>
 
       {POINTS.map((p, i) => {
         const active = phase === 'capture' && i === step;
@@ -153,7 +156,7 @@ export function CalibrationScreen() {
               <circle cx="80" cy="80" r="72" fill="none" stroke="var(--muted)" strokeWidth="6" />
               {active && (
                 <circle
-                  cx="80" cy="80" r="72" fill="none" stroke="var(--electric)" strokeWidth="10" strokeLinecap="round"
+                  cx="80" cy="80" r="72" fill="none" stroke="var(--orange)" strokeWidth="10" strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 72} strokeDashoffset={2 * Math.PI * 72 * (1 - progress)}
                 />
               )}
@@ -161,7 +164,7 @@ export function CalibrationScreen() {
             <div
               style={{
                 position: 'absolute', inset: 24, borderRadius: '50%',
-                background: done ? 'var(--electric)' : active ? 'var(--white)' : 'var(--navy-2)',
+                background: done ? 'var(--orange)' : active ? 'var(--white)' : 'var(--surface)',
                 color: 'var(--navy)', opacity: active || done ? 1 : 0.5,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 56, fontWeight: 800,

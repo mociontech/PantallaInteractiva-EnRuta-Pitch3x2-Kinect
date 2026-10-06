@@ -1,3 +1,3 @@
-.root { width: 480px; display: flex; flex-direction: column; align-items: center; }
-.plate { background: var(--white); border-radius: 32px; padding: 40px; }
-.text { margin-top: 24px; font-size: 36px; font-weight: 600; text-align: center; line-height: 1.2; }
+.root { width: 495px; display: flex; flex-direction: column; align-items: center; }
+.plate { background: var(--white); border-radius: 32px; padding: 37px; width: 466px; height: 466px; }
+.text { margin-top: 24px; font-size: 33px; font-weight: 600; text-align: center; line-height: 43px; color: var(--white); }

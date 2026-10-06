@@ -1,6 +1,5 @@
 .btn {
   position: relative;
-  width: 420px;
   height: 140px;
   border-radius: 70px;
   overflow: hidden;
@@ -9,16 +8,16 @@
   justify-content: center;
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
-.primary { background: var(--electric); color: var(--navy); }
-.secondary { background: transparent; border: 6px solid var(--electric); color: var(--white); }
+.primary { background: var(--orange); color: var(--navy); }
+.secondary { background: transparent; border: 5px solid var(--white); color: var(--white); }
 .fill {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.5);
   transform-origin: left center;
   transform: scaleX(0);
 }
-.secondary .fill { background: var(--electric); opacity: 0.6; }
+.secondary .fill { background: var(--orange); opacity: 0.7; }
 .label { position: relative; font-size: 48px; font-weight: 800; line-height: 1.1; text-align: center; padding: 0 28px; }
 .hover { transform: scale(1.05); }
-.disabled { opacity: 0.35; }
+.disabled { opacity: 0.4; }

@@ -134,7 +134,7 @@ export function reducer(s: SessionState, a: Action): SessionState {
 
     case 'ADD_GAME_SCORE':
       if (s.screen !== 's5') return s;
-      return { ...s, gameScore: s.gameScore + a.points };
+      return { ...s, gameScore: Math.max(0, s.gameScore + a.points) };
 
     case 'RESET':
       return { ...initialState };

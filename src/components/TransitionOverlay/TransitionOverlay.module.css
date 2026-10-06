@@ -2,7 +2,7 @@
 .sweep {
   position: absolute;
   inset: 0;
-  background: var(--navy-2);
+  background: var(--navy);
   animation: sweep 0.6s ease-in-out forwards;
 }
 .edge {
@@ -10,8 +10,9 @@
   right: 0;
   top: 0;
   bottom: 0;
-  width: 16px;
-  background: linear-gradient(180deg, var(--node-1), var(--node-3), var(--node-5));
+  width: 24px;
+  background: var(--orange);
+  box-shadow: 0 0 40px var(--orange);
 }
 @keyframes sweep {
   from { transform: translateX(-100%); }

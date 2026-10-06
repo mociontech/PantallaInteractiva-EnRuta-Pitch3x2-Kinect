@@ -1,31 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NODES, SOLUTIONS, SOLUTIONS_GRID, TEXT, type SolutionId } from '../config/content';
-import { GAME, SCORE } from '../config/experience';
-import { STATIC_MODE } from '../config/mode';
+import { Background } from '../components/Background/Background';
 import { GrowthPlant } from '../components/GrowthPlant/GrowthPlant';
 import { Icon } from '../components/Icon/Icon';
+import {
+  OBSTACLES, SOLUTIONS, SOLUTIONS_GRID, TEXT, type ObstacleId, type SolutionId,
+} from '../config/content';
+import { GAME, SCORE } from '../config/experience';
+import { STATIC_MODE } from '../config/mode';
 import { DwellTarget } from '../interaction/DwellTarget';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
 import s from './screens.module.css';
 
-const node = NODES[4]!;
 const CENTER = { x: 960, y: 640 };
 const RX = 620;
 const RY = 260;
 /** Ángulos (grados) de los puestos alrededor de la planta; se evita abajo (planta y barra). */
 const ANGLES = [-90, -45, 0, 45, 135, 180, 225] as const;
 const SLOTS = ANGLES.length;
+const OBSTACLE_IDS = Object.keys(OBSTACLES) as ObstacleId[];
 
 function slotPos(slot: number): { x: number; y: number } {
   const a = ((ANGLES[slot] ?? 0) * Math.PI) / 180;
   return { x: CENTER.x + Math.cos(a) * RX, y: CENTER.y + Math.sin(a) * RY };
 }
 
-interface Item {
+type Item =
+  | { uid: number; kind: 'good'; id: SolutionId; slot: number }
+  | { uid: number; kind: 'bad'; id: ObstacleId; slot: number };
+
+interface Pop {
   uid: number;
-  sol: SolutionId;
-  slot: number;
+  x: number;
+  y: number;
+  text: string;
 }
 
 function fmt(ms: number): string {
@@ -33,13 +41,22 @@ function fmt(ms: number): string {
   return `00:${String(t).padStart(2, '0')}`;
 }
 
+function pick<T>(list: readonly T[]): T {
+  return list[Math.floor(Math.random() * list.length)] as T;
+}
+
 export function GrowthGame() {
   const { state, act } = useSession();
   const [items, setItems] = useState<Item[]>(
     STATIC_MODE
-      ? [{ uid: 1, sol: 'formacion', slot: 5 }, { uid: 2, sol: 'eventos', slot: 2 }, { uid: 3, sol: 'programas', slot: 0 }]
+      ? [
+          { uid: 1, kind: 'good', id: 'formacion', slot: 5 },
+          { uid: 2, kind: 'bad', id: 'financiacion', slot: 2 },
+          { uid: 3, kind: 'good', id: 'programas', slot: 0 },
+        ]
       : [],
   );
+  const [pops, setPops] = useState<Pop[]>([]);
   const [left, setLeft] = useState<number>(STATIC_MODE ? 20_000 : GAME.durationMs);
   const [ended, setEnded] = useState(false);
   const itemsRef = useRef<Item[]>([]);
@@ -81,8 +98,10 @@ export function GrowthGame() {
       const free = Array.from({ length: SLOTS }, (_, i) => i).filter((i) => !used.has(i));
       const slot = free[Math.floor(Math.random() * free.length)];
       if (slot === undefined) return;
-      const sol = SOLUTIONS_GRID[Math.floor(Math.random() * SOLUTIONS_GRID.length)] as SolutionId;
-      const item: Item = { uid: ++uid.current, sol, slot };
+      const bad = Math.random() < GAME.obstacleChance;
+      const item: Item = bad
+        ? { uid: ++uid.current, kind: 'bad', id: pick(OBSTACLE_IDS), slot }
+        : { uid: ++uid.current, kind: 'good', id: pick(SOLUTIONS_GRID), slot };
       setItems((l) => [...l, item]);
       timers.push(window.setTimeout(() => remove(item.uid), GAME.itemLifeMs));
     }, GAME.spawnEveryMs);
@@ -92,9 +111,14 @@ export function GrowthGame() {
     };
   }, [ended, remove]);
 
-  const collect = (item: Item): void => {
+  const touch = (item: Item): void => {
     remove(item.uid);
-    act({ type: 'ADD_GAME_SCORE', points: SCORE.gameItem });
+    const p = slotPos(item.slot);
+    const good = item.kind === 'good';
+    act({ type: 'ADD_GAME_SCORE', points: good ? SCORE.gameItem : -GAME.obstaclePenalty });
+    const pop: Pop = { uid: item.uid, x: p.x, y: p.y, text: good ? `+${SCORE.gameItem}` : `−${GAME.obstaclePenalty}` };
+    setPops((l) => [...l, pop]);
+    window.setTimeout(() => setPops((l) => l.filter((x) => x.uid !== pop.uid)), 900);
   };
 
   const barProgress = Math.min(1, state.gameScore / GAME.targetPoints);
@@ -102,33 +126,50 @@ export function GrowthGame() {
 
   return (
     <div className={s.screen}>
-      <div className={s.hud} style={at(96, 130)}>
-        <span className={s.hudLabel}>{TEXT.s5.time}</span>
-        <span className={s.hudValue}>{fmt(left)}</span>
+      <Background kind="swoosh" />
+
+      {/* Cabecera del juego (diseño de creatividad) */}
+      <div
+        style={{
+          ...at(96, 155, 96, 96), boxSizing: 'border-box', borderRadius: '50%', border: '6px solid var(--white)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 56, fontWeight: 800, color: 'var(--white)',
+        }}
+      >
+        5
       </div>
-      <div className={s.hud} style={{ ...at(1524, 130, 300), alignItems: 'flex-end' }}>
-        <span className={s.hudLabel}>{TEXT.s5.points}</span>
-        <span className={s.hudValue}>{state.gameScore}</span>
+      <span
+        style={{
+          ...at(233, 98), boxSizing: 'border-box', fontSize: 33, fontWeight: 800, letterSpacing: 2, color: 'var(--white)',
+          border: '3px solid var(--white)', borderRadius: 999, padding: '4px 36px',
+        }}
+      >
+        {TEXT.badge.game3}
+      </span>
+      <p style={{ ...at(233, 164, 1200), margin: 0, fontSize: 47, lineHeight: '55px', fontWeight: 600, color: 'var(--white)', whiteSpace: 'pre-line' }}>
+        {TEXT.s5.instruction}
+      </p>
+
+      <div style={at(96, 1081, 400)}>
+        <div className={s.hudLabel} style={{ fontSize: 33 }}>{TEXT.s5.time}</div>
+        <div className={s.hudValue}>{fmt(left)}</div>
       </div>
-      <div style={{ ...at(360, 130, 1200), textAlign: 'center', color: node.color }}>
-        <span style={{ fontSize: 28, fontWeight: 800, border: `3px solid ${node.color}`, borderRadius: 999, padding: '4px 24px' }}>
-          {TEXT.badge.game2}
-        </span>
-        <p style={{ margin: '16px 0 0', fontSize: 36, color: 'var(--white)' }}>{TEXT.s5.instruction}</p>
+      <div style={{ ...at(1526, 130, 298), textAlign: 'right' }}>
+        <div className={s.hudLabel}>{TEXT.s5.points}</div>
+        <div className={s.hudValue}>{state.gameScore}</div>
       </div>
 
-      <div style={{ position: 'absolute', left: CENTER.x - 180, top: CENTER.y - 250 }}>
+      <div style={{ position: 'absolute', left: CENTER.x - 180, top: 437 }}>
         <GrowthPlant stage={stage} progress={barProgress} showBar={false} />
       </div>
 
       {items.map((it) => {
-        const def = SOLUTIONS[it.sol];
+        const def = it.kind === 'good' ? SOLUTIONS[it.id] : OBSTACLES[it.id];
         const p = slotPos(it.slot);
         return (
           <div
             key={it.uid}
             style={{
-              position: 'absolute', left: p.x - 110, top: p.y - 110, width: 220, height: 220,
+              position: 'absolute', left: p.x - 91, top: p.y - 91, width: 182, height: 182,
               animation: `itemLife ${GAME.itemLifeMs}ms linear forwards`,
             }}
           >
@@ -137,37 +178,53 @@ export function GrowthGame() {
               mode="contact"
               shape="circle"
               hitboxPadding={0}
-              color={def.color}
-              onActivate={() => collect(it)}
-              style={{ width: 220, height: 220 }}
+              color="var(--orange)"
+              onActivate={() => touch(it)}
+              style={{ width: 182, height: 182 }}
             >
-              <div style={{ width: 220, height: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 182, height: 182, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div
                   style={{
-                    width: 180, height: 180, borderRadius: '50%', background: def.color, color: 'var(--navy)',
+                    width: 149, height: 149, borderRadius: '50%', background: 'var(--white)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
                 >
-                  <Icon name={def.icon} size={96} />
+                  <Icon name={def.icon} size={80} black />
                 </div>
               </div>
             </DwellTarget>
-            <div style={{ fontSize: 28, fontWeight: 600, textAlign: 'center', width: 300, marginLeft: -40, lineHeight: 1.1 }}>
+            <div
+              style={{
+                width: 300, marginLeft: -59, textAlign: 'center', fontSize: 28, lineHeight: '30px', fontWeight: 600, color: 'var(--white)',
+              }}
+            >
               {def.title}
             </div>
           </div>
         );
       })}
 
+      {pops.map((p) => (
+        <div
+          key={p.uid}
+          style={{
+            ...at(p.x - 80, p.y - 120, 160), textAlign: 'center', fontSize: 56, fontWeight: 800,
+            color: p.text.startsWith('+') ? 'var(--orange)' : 'var(--white)', animation: 'popUp 0.9s ease-out forwards',
+          }}
+        >
+          {p.text}
+        </div>
+      ))}
+
       <div
         style={{
-          position: 'absolute', left: 96, top: 1010, width: 1728, height: 28, borderRadius: 14,
-          background: 'var(--navy-2)', border: `3px solid ${node.color}`, overflow: 'hidden',
+          ...at(96, 1023, 1728, 28), boxSizing: 'border-box', borderRadius: 14, background: 'var(--surface)',
+          border: '2px solid var(--track)', overflow: 'hidden',
         }}
       >
         <div
           style={{
-            height: '100%', background: node.color, transformOrigin: 'left',
+            height: '100%', background: 'var(--orange)', transformOrigin: 'left',
             transform: `scaleX(${barProgress})`, transition: 'transform 0.4s ease',
           }}
         />
@@ -178,13 +235,17 @@ export function GrowthGame() {
           className={s.fadeIn}
           style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.6)', fontSize: 120, fontWeight: 800, textAlign: 'center', padding: 96,
+            background: 'rgba(2, 36, 91, 0.82)', fontSize: 110, fontWeight: 800, textAlign: 'center', padding: 96,
+            color: 'var(--white)', lineHeight: '120px',
           }}
         >
           {TEXT.s5.end}
         </div>
       )}
-      <style>{`@keyframes itemLife { 0% { opacity: 0; transform: scale(.6) } 10% { opacity: 1; transform: scale(1) } 80% { opacity: 1 } 100% { opacity: 0 } }`}</style>
+      <style>{`
+        @keyframes itemLife { 0% { opacity: 0; transform: scale(.6) } 10% { opacity: 1; transform: scale(1) } 80% { opacity: 1 } 100% { opacity: 0 } }
+        @keyframes popUp { from { transform: translateY(0); opacity: 1 } to { transform: translateY(-70px); opacity: 0 } }
+      `}</style>
     </div>
   );
 }

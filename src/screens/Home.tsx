@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { NODES, TEXT } from '../config/content';
-import { STATIC_MODE } from '../config/mode';
+import { Background } from '../components/Background/Background';
 import { NodeButton, type NodeState } from '../components/NodeButton/NodeButton';
 import { RouteLine, type Point } from '../components/RouteLine/RouteLine';
+import { NODES, TEXT } from '../config/content';
+import { STATIC_MODE } from '../config/mode';
 import { nextStation } from '../state/machine';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
@@ -11,20 +12,21 @@ import s from './screens.module.css';
 const NODE_W = 340;
 const START_X = 200;
 const STEP = 380;
-const BASE_Y = 640;
-const AMPL = 60;
+/** Centro vertical de los nodos: alternan arriba/abajo (medido del diseño de creatividad). */
+const Y_UP = 604;
+const Y_DOWN = 724;
 
 function centerOf(i: number): Point {
-  return { x: START_X + i * STEP, y: BASE_Y + (i % 2 === 0 ? -AMPL : AMPL) };
+  return { x: START_X + i * STEP, y: i % 2 === 0 ? Y_UP : Y_DOWN };
 }
 
 export function Home() {
   const { state, act } = useSession();
   const c = state.completed.length;
   const next = nextStation(state);
-  const target = Math.min(1, c / 4);
-  // La línea avanza hasta el siguiente nodo al entrar.
-  const [progress, setProgress] = useState(STATIC_MODE ? target : Math.max(0, (c - 1) / 4));
+  // La línea naranja llega hasta el nodo disponible y adelanta el siguiente tramo, como en el diseño.
+  const target = Math.min(1, (c + 1) / 4);
+  const [progress, setProgress] = useState(STATIC_MODE ? target : Math.max(0, c / 4));
   useEffect(() => {
     const t = window.setTimeout(() => setProgress(target), 300);
     return () => window.clearTimeout(t);
@@ -34,15 +36,16 @@ export function Home() {
 
   return (
     <div className={s.screen}>
-      <h1 className={s.display} style={{ ...at(96, 150, 1728), fontSize: 88, textAlign: 'center' }}>
-        {TEXT.home.title}
-      </h1>
+      <Background kind="plain" />
+      <h1 className={s.h1} style={{ ...at(0, 296, 1920), textAlign: 'center' }}>{TEXT.home.title}</h1>
+
       <RouteLine
         points={points}
         progress={progress}
-        colors={NODES.map((n) => n.color)}
+        colors={['var(--orange)', 'var(--orange)']}
         width={1920}
         height={1280}
+        strokeWidth={6}
       />
       {NODES.map((n, i) => {
         const p = centerOf(i);
@@ -52,9 +55,7 @@ export function Home() {
             <NodeButton
               targetId={`node-${n.n}`}
               number={n.n}
-              icon={n.icon}
               title={n.title}
-              color={n.color}
               state={st}
               onActivate={() => act({ type: 'GO', to: `s${n.n}` as 's1' })}
             />

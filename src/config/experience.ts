@@ -1,5 +1,3 @@
-import type { AreaId, SolutionId } from './content';
-
 export const STAGE = { width: 1920, height: 1280 } as const;
 
 /**
@@ -55,6 +53,10 @@ export const GAME = {
   /** Puntos de juego para llenar la barra de la planta. */
   targetPoints: 250,
   endHoldMs: 2500,
+  /** Probabilidad de que un ítem nuevo sea un obstáculo ("lo que no pertenece a tu ruta"). [CONFIRMAR] */
+  obstacleChance: 0.35,
+  /** Puntos que se pierden al tocar un obstáculo (el puntaje del juego no baja de 0). [CONFIRMAR] */
+  obstaclePenalty: 25,
 } as const;
 
 /** [CONFIRMAR] URL del QR final; puede incluir el id de sesión. */
@@ -67,14 +69,6 @@ export const FEATURES = {
   /** Video por solución en Estación 4 (dwell abre VideoContentPanel). */
   solutionVideos: false,
 } as const;
-
-/** [CONFIRMAR] Mapeo área elegida -> soluciones a resaltar en la Estación 3. */
-export const AREA_TO_SOLUTIONS: Record<AreaId, readonly SolutionId[]> = {
-  vender: ['programas', 'eventos', 'acompanamiento'],
-  organizar: ['acompanamiento', 'informacion', 'formacion'],
-  aprender: ['formacion', 'informacion'],
-  conectar: ['eventos', 'programas'],
-};
 
 /**
  * Cámara + MediaPipe Pose (input=cam). La mano se mide relativa al cuerpo (en anchos de

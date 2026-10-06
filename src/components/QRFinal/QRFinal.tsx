@@ -7,7 +7,7 @@ export function QRFinal({ url }: { url: string }) {
   return (
     <div className={s.root}>
       <div className={s.plate}>
-        <QRCodeSVG value={url} size={400} level="M" />
+        <QRCodeSVG value={url} size={392} level="M" />
       </div>
       <div className={s.text}>{TEXT.result.qr}</div>
     </div>

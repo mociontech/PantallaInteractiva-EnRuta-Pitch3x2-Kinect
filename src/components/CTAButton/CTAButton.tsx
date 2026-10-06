@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { TIMING } from '../../config/experience';
 import { DwellTarget } from '../../interaction/DwellTarget';
 import s from './CTAButton.module.css';
@@ -8,12 +9,17 @@ interface ViewProps {
   progress?: number;
   hover?: boolean;
   disabled?: boolean;
+  /** Ancho en px (alto fijo 140). Por defecto 420. */
+  width?: number;
 }
 
-/** Solo visual: 420×140, texto 48 px. El dwell llena el botón de izquierda a derecha. */
-export function CTAView({ label, variant = 'primary', progress = 0, hover = false, disabled = false }: ViewProps) {
+/** Solo visual: pastilla naranja con texto azul de 48 px. El dwell llena el botón de izquierda a derecha. */
+export function CTAView({ label, variant = 'primary', progress = 0, hover = false, disabled = false, width = 420 }: ViewProps) {
   return (
-    <div className={`${s.btn} ${s[variant]} ${hover ? s.hover : ''} ${disabled ? s.disabled : ''}`}>
+    <div
+      className={`${s.btn} ${s[variant]} ${hover ? s.hover : ''} ${disabled ? s.disabled : ''}`}
+      style={{ width }}
+    >
       <div className={s.fill} style={{ transform: `scaleX(${progress})` }} />
       <span className={s.label}>{label}</span>
     </div>
@@ -27,13 +33,14 @@ interface Props {
   /** 1500 ms para CTAs críticos (Comenzar, Volver a empezar). */
   dwellMs?: number;
   disabled?: boolean;
+  width?: number;
   id?: string;
   className?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
 export function CTAButton({
-  label, onActivate, variant = 'primary', dwellMs = TIMING.dwellMs, disabled, id, className, style,
+  label, onActivate, variant = 'primary', dwellMs = TIMING.dwellMs, disabled, width = 420, id, className, style,
 }: Props) {
   return (
     <DwellTarget
@@ -42,11 +49,13 @@ export function CTAButton({
       dwellMs={dwellMs}
       disabled={disabled}
       hitboxPadding={20}
-      color="var(--electric)"
+      color="var(--navy)"
       className={className}
-      style={{ width: 420, height: 140, ...style }}
+      style={{ width, height: 140, ...style }}
     >
-      {(v) => <CTAView label={label} variant={variant} progress={v.progress} hover={v.hover} disabled={disabled} />}
+      {(v) => (
+        <CTAView label={label} variant={variant} progress={v.progress} hover={v.hover} disabled={disabled} width={width} />
+      )}
     </DwellTarget>
   );
 }

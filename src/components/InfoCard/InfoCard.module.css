@@ -1,52 +1,42 @@
 .card {
   position: relative;
-  width: 520px;
-  height: 336px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--navy);
+  width: 476px;
+  height: 307px;
+  box-sizing: border-box;
+  border: 5px solid transparent;
+  border-radius: 26px;
+  background: var(--card);
+  color: var(--ink);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px 32px;
+  padding: 22px 29px;
   overflow: hidden;
-  transition: transform 0.25s ease;
+  transition: transform 0.25s ease, border-color 0.25s ease;
 }
-.hover { transform: scale(1.08); box-shadow: 0 0 0 8px var(--c); }
+.hover { transform: scale(1.06); border-color: var(--orange); }
+.seen { border-color: var(--orange); }
 .icon {
-  width: 96px;
-  height: 96px;
-  border-radius: 24px;
-  background: var(--c);
-  color: var(--navy);
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  background: var(--orange);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.title { margin-top: 16px; font-size: 36px; font-weight: 800; text-align: center; line-height: 1.1; }
+.title { margin-top: 12px; font-size: 33px; font-weight: 800; text-align: center; line-height: 36px; }
 .text {
-  margin-top: 12px;
+  margin-top: 8px;
   font-size: 28px;
+  font-weight: 600;
   text-align: center;
-  line-height: 1.15;
+  line-height: 32px;
   max-height: 0;
   opacity: 0;
   transition: opacity 0.25s ease, max-height 0.25s ease;
 }
-.hover .text { max-height: 100px; opacity: 1; }
-.seen {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--navy);
-  color: var(--white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; }
-.barFill { height: 100%; background: var(--c); transform-origin: left; transform: scaleX(0); }
+.open { max-height: 70px; opacity: 1; }
+.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; }
+.barFill { height: 100%; background: var(--orange); transform-origin: left; transform: scaleX(0); }

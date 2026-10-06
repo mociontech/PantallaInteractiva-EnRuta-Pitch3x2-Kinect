@@ -37,7 +37,7 @@ export function Catalog() {
       <Section title="NodeButton">
         {STATES.map((st) => (
           <div key={st} style={{ position: 'relative' }}>
-            <NodeButton number={n.n} icon={n.icon} title={st} color={n.color} state={st} progress={st === 'hover' ? 0.6 : 0} />
+            <NodeButton number={n.n} title={st} state={st} progress={st === 'hover' ? 0.6 : 0} />
           </div>
         ))}
       </Section>
@@ -50,9 +50,9 @@ export function Catalog() {
       </Section>
 
       <Section title="InfoCard (reposo / hover / seen)">
-        <InfoCard icon={sol.icon} title={sol.title} text={sol.short} color={sol.color} />
-        <InfoCard icon={sol.icon} title={sol.title} text={sol.short} color={sol.color} hover progress={0.5} />
-        <InfoCard icon={sol.icon} title={sol.title} text={sol.short} color={sol.color} seen />
+        <InfoCard icon={sol.icon} title={sol.title} text={sol.short} />
+        <InfoCard icon={sol.icon} title={sol.title} text={sol.short} hover progress={0.5} />
+        <InfoCard icon={sol.icon} title={sol.title} text={sol.short} seen />
       </Section>
 
       <Section title="RouteLine (0 / 0.5 / 1)">
@@ -61,7 +61,7 @@ export function Catalog() {
             <RouteLine
               points={[{ x: 40, y: 70 }, { x: 250, y: 30 }, { x: 460, y: 110 }, { x: 660, y: 70 }]}
               progress={p}
-              colors={NODES.map((x) => x.color)}
+              colors={['var(--orange)', 'var(--orange)']}
               width={700}
               height={140}
             />
@@ -76,7 +76,7 @@ export function Catalog() {
       </Section>
 
       <Section title="StationHeader">
-        <StationHeader badge="JUEGO 1" number={2} title="¿Qué quieres fortalecer?" instruction="Elige 2" color={n.color} width={900} />
+        <StationHeader badge="JUEGO 1" number={2} title="¿Qué quieres fortalecer?" instruction="Elige 2" width={900} />
       </Section>
 
       <Section title="GrowthPlant (etapas 0–4)">

@@ -1,53 +1,73 @@
 .screen { position: absolute; inset: 0; }
-.logoBox {
-  border: 4px solid var(--white);
-  border-radius: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  line-height: 1;
-}
-.logoName { font-size: 56px; font-weight: 800; }
-.logoSub { font-size: 28px; letter-spacing: 6px; margin-top: 6px; }
-.display { margin: 0; font-size: 150px; line-height: 1.02; font-weight: 800; }
-.h2 { margin: 0; font-size: 56px; font-weight: 600; line-height: 1.15; }
-.t36 { font-size: 36px; font-weight: 600; line-height: 1.2; }
-.t48 { font-size: 48px; font-weight: 800; line-height: 1.15; }
-.accent { width: 120px; height: 8px; background: var(--orange); border-radius: 4px; }
+.fadeIn { animation: fadeIn 0.6s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+
+.h1 { margin: 0; font-size: 93px; line-height: 90px; font-weight: 800; color: var(--white); }
+.t37 { font-size: 37px; font-weight: 600; line-height: 43px; color: var(--white); }
+.t33 { font-size: 33px; font-weight: 600; line-height: 40px; color: var(--white); }
+
+/* Píldora oscura con icono (beneficios de la Estación 1) */
 .pill {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 0 32px;
+  padding: 0 23px;
   border-radius: 60px;
-  background: var(--navy-2);
-  border: 4px solid var(--c);
-  font-size: 36px;
+  border: 3px solid var(--orange);
+  font-size: 37px;
   font-weight: 600;
-  line-height: 1.1;
-  transition: transform 0.4s ease, opacity 0.4s ease;
+  color: var(--white);
 }
 .pillIcon {
   flex: none;
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: var(--c);
-  color: var(--navy);
+  background: var(--orange);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.fadeIn { animation: fadeIn 0.6s ease both; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-.hud { display: flex; flex-direction: column; }
-.hudLabel { font-size: 28px; font-weight: 600; }
-.hudValue { font-size: 72px; font-weight: 800; line-height: 1; }
+
+/* Píldora de la Estación 3 */
+.route {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 0 35px;
+  border-radius: 66px;
+  background: var(--surface);
+  border: 4px solid var(--white);
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 44px;
+  color: var(--white);
+  transition: transform 0.4s ease, opacity 0.4s ease, border-color 0.4s ease;
+}
+.routeIcon {
+  flex: none;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hudLabel { font-size: 28px; font-weight: 600; color: var(--white); }
+.hudValue { font-size: 72px; font-weight: 800; line-height: 72px; color: var(--white); }
 .chip {
-  font-size: 36px;
+  font-size: 33px;
   font-weight: 800;
-  border: 4px solid var(--c);
+  border: 3px solid var(--white);
   border-radius: 999px;
   padding: 8px 28px;
+  color: var(--white);
 }
+
+/* Anillos concéntricos (glifo ◎ del diseño) */
+.targetGlyph { position: relative; display: inline-block; }
+.targetGlyph::before, .targetGlyph::after { content: ''; position: absolute; border-radius: 50%; border: 5px solid var(--white); }
+.targetGlyph::before { inset: 0; }
+.targetGlyph::after { inset: 25%; }

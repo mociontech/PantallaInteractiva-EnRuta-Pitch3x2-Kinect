@@ -6,9 +6,7 @@ export type NodeState = 'locked' | 'available' | 'hover' | 'completed';
 
 interface Props {
   number: number;
-  icon: string;
   title: string;
-  color: string;
   state: NodeState;
   progress?: number;
   /** Si se pasa, el círculo es un DwellTarget (hitbox Ø 260). Sin esto es solo visual. */
@@ -19,7 +17,7 @@ interface Props {
 const R = 118;
 const CIRC = 2 * Math.PI * R;
 
-function Circle({ number, icon, state, progress = 0 }: Omit<Props, 'title'>) {
+function Circle({ number, state, progress = 0 }: Pick<Props, 'number' | 'state' | 'progress'>) {
   return (
     <div className={`${s.circle} ${s[state]}`}>
       {progress > 0 && (
@@ -27,21 +25,23 @@ function Circle({ number, icon, state, progress = 0 }: Omit<Props, 'title'>) {
           <circle cx="130" cy="130" r={R} strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - progress)} />
         </svg>
       )}
-      <div className={s.content} style={{ color: state === 'completed' ? 'var(--navy)' : undefined }}>
-        {state === 'locked' && <Icon name="lock" size={72} />}
-        {state === 'completed' && <Icon name="check" size={72} />}
-        {(state === 'available' || state === 'hover') && <Icon name={icon} size={72} />}
-        <span className={s.num}>{number}</span>
-      </div>
+      {state === 'completed' ? (
+        <Icon name="check" size={96} />
+      ) : (
+        <div className={s.content}>
+          {state === 'locked' && <Icon name="lock" size={40} />}
+          <span className={state === 'locked' ? s.numSmall : s.num}>{number}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Ø 220 (hitbox Ø 260). El título va debajo a 36 px. */
+/** Ø 220 (hitbox Ø 260). El título va debajo a 37 px. */
 export function NodeButton(props: Props) {
-  const { title, color, state, onActivate, targetId } = props;
+  const { title, state, onActivate, targetId } = props;
   return (
-    <div className={s.wrap} style={{ ['--c' as string]: color }}>
+    <div className={s.wrap}>
       {onActivate ? (
         <DwellTarget
           id={targetId}
@@ -49,19 +49,19 @@ export function NodeButton(props: Props) {
           disabled={state !== 'available'}
           shape="circle"
           hitboxPadding={20}
-          color={color}
+          color="var(--white)"
           className={s.targetBox}
         >
           {(v) => (
             <Circle
-              {...props}
+              number={props.number}
               state={state === 'available' && v.hover ? 'hover' : state}
               progress={v.progress}
             />
           )}
         </DwellTarget>
       ) : (
-        <Circle {...props} />
+        <Circle number={props.number} state={state} progress={props.progress} />
       )}
       <div className={s.title}>{title}</div>
     </div>

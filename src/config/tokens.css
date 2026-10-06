@@ -1,29 +1,25 @@
-/* Único archivo de tokens de marca. [CONFIRMAR] reemplazar por el manual de marca. */
+/* Único archivo de tokens de marca. Fuente: UI KIT de Figma (CÁMARA DE COMERCIO CARTAGENA · EnRuta). */
 :root {
-  --navy: #0a1b3d;
-  --navy-2: #0f2552;
-  --electric: #1e7bff;
+  /* Marca (UI KIT) */
+  --navy: #02245b;
+  --orange: #ff7300;
   --white: #ffffff;
-  --orange: #ff6a1a;
-  --muted: #3a4a6b;
+  --black: #000000;
 
-  --node-1: #1e7bff;
-  --node-2: #7b3ff2;
-  --node-3: #ff6a1a;
-  --node-4: #ffb21a;
-  --node-5: #19d3c5;
+  /* Derivados usados por el diseño de la pared */
+  --surface: #242424; /* círculos y píldoras oscuras */
+  --ink: #121212; /* texto sobre tarjetas blancas */
+  --muted: #555555; /* bloqueado / pendiente */
+  --track: #7a7a7a; /* borde de la barra de progreso */
+  --card: rgba(255, 255, 255, 0.92);
 
-  --sol-formacion: #7b3ff2;
-  --sol-acompanamiento: #ff6a1a;
-  --sol-programas: #19d3c5;
-  --sol-contactos: #e84393;
-  --sol-informacion: #1e7bff;
-  --sol-eventos: #ffb21a;
-
-  --diag-vender: #1e7bff;
-  --diag-organizar: #ff6a1a;
-  --diag-aprender: #7b3ff2;
-  --diag-conectar: #19d3c5;
+  /* Categorías de la pantalla IDLE (diseño de creatividad) */
+  --cat-diagnostico: #042784;
+  --cat-caracterizacion: #7c3aed;
+  --cat-enrutamiento: #ff7300;
+  --cat-servicios: #f59e0b;
+  --cat-seguimiento: #14b8a6; /* [CONFIRMAR] tono exacto */
+  --cat-impacto: #475569;
 
   --font: 'Montserrat', system-ui, sans-serif;
 }

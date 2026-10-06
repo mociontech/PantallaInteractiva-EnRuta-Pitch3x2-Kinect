@@ -17,6 +17,8 @@ interface Props {
   strokeWidth?: number;
   /** Curva suave (horizontal) entre puntos. */
   curve?: boolean;
+  /** Muestra el tramo pendiente en gris bajo el tramo recorrido. */
+  showPending?: boolean;
 }
 
 function buildPath(pts: readonly Point[], curve: boolean): string {
@@ -37,7 +39,7 @@ function buildPath(pts: readonly Point[], curve: boolean): string {
 }
 
 /** Path SVG animado con stroke-dashoffset. Tramo pendiente punteado en muted. */
-export function RouteLine({ points, progress, colors, width, height, strokeWidth = 12, curve = true }: Props) {
+export function RouteLine({ points, progress, colors, width, height, strokeWidth = 12, curve = true, showPending = true }: Props) {
   const gid = useId();
   const d = buildPath(points, curve);
   const first = points[0];
@@ -55,7 +57,7 @@ export function RouteLine({ points, progress, colors, width, height, strokeWidth
           ))}
         </linearGradient>
       </defs>
-      <path d={d} className={s.pending} strokeWidth={strokeWidth / 2} />
+      {showPending && <path d={d} className={s.pending} strokeWidth={strokeWidth} />}
       <path
         d={d}
         pathLength={1}

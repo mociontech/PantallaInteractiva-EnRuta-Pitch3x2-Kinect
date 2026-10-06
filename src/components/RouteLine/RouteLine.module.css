@@ -1,4 +1,4 @@
 .svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
-.pending { fill: none; stroke: var(--muted); stroke-dasharray: 4 22; stroke-linecap: round; }
-.line, .glow { fill: none; stroke-linecap: round; transition: stroke-dashoffset 1.4s ease-in-out; }
-.glow { opacity: 0.4; }
+.pending { fill: none; stroke: var(--muted); stroke-linecap: round; }
+.line { fill: none; stroke-linecap: round; transition: stroke-dashoffset 1.4s ease-in-out; }
+.glow { display: none; }

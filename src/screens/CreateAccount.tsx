@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { NODES, TEXT } from '../config/content';
-import { STATIC_MODE } from '../config/mode';
+import { Background } from '../components/Background/Background';
 import { CTAButton } from '../components/CTAButton/CTAButton';
 import { Icon } from '../components/Icon/Icon';
 import { StationHeader } from '../components/StationHeader/StationHeader';
+import { TEXT } from '../config/content';
+import { STATIC_MODE } from '../config/mode';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
 import s from './screens.module.css';
 
-const node = NODES[0]!;
+const PILL_TOPS = [473, 623, 774] as const;
 
 export function CreateAccount() {
   const { act } = useSession();
@@ -24,32 +25,33 @@ export function CreateAccount() {
 
   return (
     <div className={s.screen}>
+      <Background kind="swoosh" />
       <StationHeader
-        style={at(96, 140)}
+        style={at(178, 157)}
         badge={TEXT.badge.info}
         number={1}
         title={TEXT.s1.title}
         instruction={TEXT.s1.instruction}
-        color={node.color}
+        width={1450}
       />
 
       {shown >= 1 && (
         <div
-          className={`${s.logoBox} ${s.fadeIn}`}
-          style={{ ...at(180, 450, 460, 560), background: 'var(--navy-2)', borderColor: node.color, gap: 24 }}
+          className={s.fadeIn}
+          style={{
+            ...at(180, 453, 461, 561), boxSizing: 'border-box', border: '3px solid var(--orange)', borderRadius: 24,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24,
+          }}
         >
-          <span className={s.logoName}>{TEXT.brand}</span>
-          <span className={s.t36}>{TEXT.s1.tabletLabel}</span>
+          {/* [CONFIRMAR] creatividad diseñó una pantalla "REGISTRO" (cédula) que podría ir dentro de esta tablet. */}
+          <span style={{ fontSize: 56, fontWeight: 800, color: 'var(--white)' }}>{TEXT.brand}</span>
+          <span style={{ fontSize: 36, fontWeight: 600, color: 'var(--white)' }}>{TEXT.s1.tabletLabel}</span>
         </div>
       )}
 
       {TEXT.s1.benefits.map((b, i) =>
         shown >= i + 2 ? (
-          <div
-            key={b.text}
-            className={`${s.pill} ${s.fadeIn}`}
-            style={{ ...at(820, 470 + i * 150, 900, 120), ['--c' as string]: node.color }}
-          >
+          <div key={b.text} className={`${s.pill} ${s.fadeIn}`} style={at(821, PILL_TOPS[i] as number, 901, 120)}>
             <span className={s.pillIcon}><Icon name={b.icon} size={56} /></span>
             {b.text}
           </div>
@@ -62,7 +64,7 @@ export function CreateAccount() {
             id="s1-continue"
             label={TEXT.cta.continue}
             onActivate={() => act({ type: 'COMPLETE_STATION', n: 1 })}
-            style={{ position: 'absolute', left: 1404, top: 930 }}
+            style={{ position: 'absolute', left: 1303, top: 929 }}
           />
         </div>
       )}
