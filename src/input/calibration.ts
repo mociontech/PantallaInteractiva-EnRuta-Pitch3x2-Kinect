@@ -11,6 +11,8 @@ export interface Calibration {
   offsetY: number;
   reachWidth: number;
   reachHeight: number;
+  /** Ancho de hombros (fracción del ancho de imagen) medido en el punto de uso; filtra a quien está lejos/cerca. */
+  shoulderRef?: number;
 }
 
 const KEY = 'enruta.cam.calibration.v2';
@@ -27,7 +29,8 @@ function isCalibration(v: unknown): v is Calibration {
   const o = v as Record<string, unknown>;
   return (
     typeof o.offsetX === 'number' && typeof o.offsetY === 'number' &&
-    typeof o.reachWidth === 'number' && typeof o.reachHeight === 'number'
+    typeof o.reachWidth === 'number' && typeof o.reachHeight === 'number' &&
+    (o.shoulderRef === undefined || typeof o.shoulderRef === 'number')
   );
 }
 
@@ -48,7 +51,7 @@ function load(): Calibration {
 export const calibration: Calibration = load();
 
 /** Última medida cruda de la mano, en las mismas unidades (u, v) que usa la calibración. */
-export const rawHand = { u: 0, v: 0, valid: false };
+export const rawHand = { u: 0, v: 0, s: 0, valid: false };
 
 export function setCalibration(c: Calibration, persist: boolean): void {
   Object.assign(calibration, c);

@@ -18,6 +18,9 @@ export const cursor = {
 export const link = {
   kind: 'mouse' as InputKind,
   status: 'n/a' as LinkStatus,
+  /** Cámara: estado del bloqueo de usuario y personas detectadas (debug). */
+  lock: 'none' as 'none' | 'candidate' | 'locked',
+  people: 0,
 };
 
 type Listener = () => void;

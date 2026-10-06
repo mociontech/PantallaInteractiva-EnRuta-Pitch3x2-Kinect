@@ -117,6 +117,12 @@ export const TEXT = {
     ],
     practice: 'Practica mantener el cursor aquí',
     practiceDone: '¡Muy bien!',
+    course: {
+      title: 'Ahora recorre la pantalla',
+      hint: 'Lleva el cursor a cada punto y manténlo ahí.',
+      step: (n: number, total: number) => `${n} de ${total}`,
+      done: '¡Listo! Ya controlas el cursor en toda la pantalla.',
+    },
     cta: 'Entendido',
   },
 

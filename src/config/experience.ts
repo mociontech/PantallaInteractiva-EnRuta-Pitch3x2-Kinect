@@ -81,6 +81,8 @@ export const MEDIAPIPE = {
   cameraWidth: 1280,
   cameraHeight: 720,
   minVisibility: 0.5,
+  /** Personas que MediaPipe detecta a la vez (hay público pasando y gente de pie). */
+  numPoses: 4,
   /** Ancho de la zona de alcance, en anchos de hombro. Alto = ancho × 2/3. */
   reachWidth: 2.6,
   /** Centro de la zona respecto al hombro derecho, en anchos de hombro (x + = derecha en pantalla, y − = arriba). */
@@ -88,6 +90,43 @@ export const MEDIAPIPE = {
   reachOffsetY: -0.7,
   /** Tiempo que se tolera perder la mano antes de marcar tracked=false. */
   lostGraceMs: 350,
+
+  /*
+   * Selección y bloqueo del usuario. Solo controla quien levanta la mano derecha y la sostiene
+   * (acquireMs); mientras sea el usuario activo, el resto se ignora aunque levante la mano o esté más cerca.
+   * Distancias en anchos de hombro; tiempos en ms.
+   */
+  /** Ancho de hombros mínimo absoluto (fracción del ancho de imagen) cuando no hay calibración: descarta a los lejanos. */
+  minShoulderWidth: 0.05,
+  /** Con calibración: rango aceptado del ancho de hombros respecto al medido en el punto de uso. */
+  sizeRange: { min: 0.6, max: 1.7 },
+  /** Muñeca por encima del codo (en anchos de hombro) para ADQUIRIR el control. */
+  raiseMargin: 0.25,
+  /** Para MANTENERLO basta con tener la muñeca cerca del nivel del codo (histéresis, permite descansar el brazo). */
+  keepMargin: -0.15,
+  acquireMs: 400,
+  /** Mano abajo este tiempo = libera el control para que otra persona pueda tomarlo. */
+  releaseMs: 4000,
+  /** Si el usuario activo desaparece de la imagen este tiempo, se libera el control. */
+  lostMs: 1500,
+  /** Radio de seguimiento entre fotogramas y tolerancia de tamaño para reconocer a la misma persona. */
+  followRadius: 1.4,
+  followSizeTolerance: 0.4,
   /** Filtro One Euro sobre la posición (esta señal es propia, a diferencia de TD). */
   filter: { minCutoff: 1.2, beta: 0.05, dCutoff: 1.0 },
+} as const;
+
+/** Recorrido de sensibilidad en las instrucciones: puntos (px de Stage) que se visitan uno a uno. */
+export const COURSE = {
+  dwellMs: 700,
+  /** Pausa entre un punto y el siguiente. */
+  gapMs: 350,
+  diameter: 200,
+  points: [
+    { x: 260, y: 340 },
+    { x: 1660, y: 340 },
+    { x: 960, y: 640 },
+    { x: 1660, y: 960 },
+    { x: 260, y: 960 },
+  ],
 } as const;

@@ -37,6 +37,13 @@ export function CalibrationScreen() {
   const [failed, setFailed] = useState(false);
   const samples = useRef<CornerSample[]>([]);
   const previous = useRef<Calibration>({ ...calibration });
+  /** Ancho de hombros medido en cada punto (promedio = referencia de la zona de uso). */
+  const shoulders = useRef<number[]>([]);
+
+  // Sin la referencia anterior, para que el filtro por tamaño no impida calibrar.
+  useEffect(() => {
+    setCalibration({ ...calibration, shoulderRef: undefined }, false);
+  }, []);
   const saved = useRef(false);
 
   // Esc: cancelar y restaurar lo anterior.
@@ -58,8 +65,9 @@ export function CalibrationScreen() {
     let n = 0;
     let su = 0;
     let sv = 0;
+    let ss = 0;
     const reset = (): void => {
-      t0 = null; n = 0; su = 0; sv = 0;
+      t0 = null; n = 0; su = 0; sv = 0; ss = 0;
       setProgress(0);
     };
     const loop = (now: number): void => {
@@ -72,14 +80,15 @@ export function CalibrationScreen() {
       setLost(false);
       if (t0 === null) t0 = now;
       if (n > 0 && Math.hypot(rawHand.u - su / n, rawHand.v - sv / n) > STEADY) {
-        t0 = now; n = 0; su = 0; sv = 0;
+        t0 = now; n = 0; su = 0; sv = 0; ss = 0;
       }
-      n++; su += rawHand.u; sv += rawHand.v;
+      n++; su += rawHand.u; sv += rawHand.v; ss += rawHand.s;
       const p = Math.min(1, (now - t0) / HOLD_MS);
       setProgress(p);
       if (p < 1) return;
 
       const pt = POINTS[step] as (typeof POINTS)[number];
+      shoulders.current[step] = ss / n;
       samples.current[step] = {
         nx: pt.x / STAGE.width, ny: pt.y / STAGE.height, u: su / n, v: sv / n,
       };
@@ -90,7 +99,8 @@ export function CalibrationScreen() {
       }
       const fit = fitCalibration(samples.current as unknown as [CornerSample, CornerSample, CornerSample, CornerSample]);
       if (fit) {
-        setCalibration(fit, false); // vista previa en vivo; se guarda con "Guardar"
+        const ref = shoulders.current.reduce((a, b) => a + b, 0) / Math.max(1, shoulders.current.length);
+        setCalibration({ ...fit, shoulderRef: ref }, false); // vista previa en vivo; se guarda con "Guardar"
         setFailed(false);
         setPhase('verify');
       } else {
@@ -112,6 +122,8 @@ export function CalibrationScreen() {
 
   const retry = (): void => {
     samples.current = [];
+    shoulders.current = [];
+    setCalibration({ ...calibration, shoulderRef: undefined }, false);
     setStep(0);
     setProgress(0);
     setFailed(false);

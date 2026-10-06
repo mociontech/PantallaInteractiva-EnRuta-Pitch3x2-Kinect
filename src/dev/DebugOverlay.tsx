@@ -72,7 +72,7 @@ export function DebugOverlay() {
         </div>
       ))}
       <div style={{ position: 'absolute', left: 8, top: 8, background: '#000c', padding: 8, fontSize: 20, lineHeight: 1.3 }}>
-        {snap.fps} fps · input {link.kind} · ws {snap.status}
+        {snap.fps} fps · input {link.kind} · ws {snap.status}{link.kind === 'cam' ? ` · personas ${link.people} · usuario ${link.lock}` : ''}
         <br />
         pantalla {state.screen} · cursor {snap.x},{snap.y} {snap.tracked ? '' : '(sin tracking)'} · dwell {INPUT.dwellSource}
         <br />

@@ -16,11 +16,39 @@ function visible(l: NormalizedLandmark | undefined): l is NormalizedLandmark {
   return l !== undefined && (l.visibility ?? 1) >= MEDIAPIPE.minVisibility;
 }
 
+/** Una persona detectada en el fotograma, con medidas en "unidades de ancho de imagen". */
+interface Person {
+  lms: NormalizedLandmark[];
+  /** Punto medio de los hombros. */
+  ax: number;
+  ay: number;
+  /** Ancho de hombros. */
+  S: number;
+  /** Cuánto está la muñeca por encima del codo, en anchos de hombro (+ = levantada). */
+  raise: number;
+  sizeOk: boolean;
+  role: 'locked' | 'candidate' | 'far' | 'idle';
+}
+
+/** Usuario activo bloqueado. Mientras exista, las demás personas se ignoran. */
+interface Lock {
+  ax: number;
+  ay: number;
+  S: number;
+  lastSeen: number;
+  handDownSince: number | null;
+}
+
 /**
  * Cámara web + MediaPipe Pose -> mismo contrato {x, y, tracked} que TouchDesigner.
- * Mapeo: posición de la mano derecha relativa al hombro derecho, en anchos de hombro,
- * dentro de la zona de alcance calibrada (src/input/calibration.ts) -> 0..1.
- * La imagen se espeja (derecha del usuario = derecha en pantalla).
+ *
+ * Pensado para cámara en alto y en diagonal, con público pasando y gente quieta:
+ *  - Solo controla UNA persona: la primera que levanta la mano derecha y la sostiene (acquireMs).
+ *    Queda bloqueada (se sigue por posición y tamaño entre fotogramas): nadie más la reemplaza aunque
+ *    esté más cerca o levante la mano. Se libera si baja la mano (releaseMs) o desaparece (lostMs).
+ *  - Se descarta a quien está muy lejos/cerca (ancho de hombros fuera de rango).
+ *  - Mapeo: mano derecha relativa al hombro derecho, en anchos de hombro, dentro de la zona de alcance
+ *    calibrada (src/input/calibration.ts). La imagen se espeja.
  */
 export class MediaPipeInput implements InputProvider {
   readonly kind = 'cam' as const;
@@ -32,6 +60,8 @@ export class MediaPipeInput implements InputProvider {
   private stopped = false;
   private lastVideoTime = -1;
   private lastSeen = 0;
+  private lock: Lock | null = null;
+  private cand: { ax: number; ay: number; S: number; since: number } | null = null;
   private fx = new OneEuro(MEDIAPIPE.filter.minCutoff, MEDIAPIPE.filter.beta, MEDIAPIPE.filter.dCutoff);
   private fy = new OneEuro(MEDIAPIPE.filter.minCutoff, MEDIAPIPE.filter.beta, MEDIAPIPE.filter.dCutoff);
   private lastX = 0.5;
@@ -70,7 +100,7 @@ export class MediaPipeInput implements InputProvider {
       this.landmarker = await PoseLandmarker.createFromOptions(fileset, {
         baseOptions: { modelAssetPath: MEDIAPIPE.modelPath, delegate: 'GPU' },
         runningMode: 'VIDEO',
-        numPoses: 3,
+        numPoses: MEDIAPIPE.numPoses,
       });
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { width: MEDIAPIPE.cameraWidth, height: MEDIAPIPE.cameraHeight, facingMode: 'user' },
@@ -107,7 +137,11 @@ export class MediaPipeInput implements InputProvider {
     this.landmarker = null;
     this.video = null;
     this.preview = null;
+    this.lock = null;
+    this.cand = null;
     rawHand.valid = false;
+    link.lock = 'none';
+    link.people = 0;
     pushSample({ x: 0.5, y: 0.5, tracked: false });
   }
 
@@ -121,6 +155,92 @@ export class MediaPipeInput implements InputProvider {
     this.preview = c;
   }
 
+  /** Mide a cada persona detectada (necesita hombros visibles). */
+  private measure(all: NormalizedLandmark[][], aspect: number): Person[] {
+    const out: Person[] = [];
+    const ref = calibration.shoulderRef;
+    for (const lms of all) {
+      const rs = lms[R_SHOULDER];
+      const ls = lms[L_SHOULDER];
+      if (!visible(rs) || !visible(ls)) continue;
+      const S = Math.abs(rs.x - ls.x);
+      if (S <= 0) continue;
+      const el = lms[R_ELBOW];
+      const wr = lms[R_WRIST];
+      const raise = visible(el) && visible(wr) ? ((el.y - wr.y) * aspect) / S : Number.NEGATIVE_INFINITY;
+      const sizeOk = ref
+        ? S >= ref * MEDIAPIPE.sizeRange.min && S <= ref * MEDIAPIPE.sizeRange.max
+        : S >= MEDIAPIPE.minShoulderWidth;
+      out.push({
+        lms, S, raise, sizeOk, role: sizeOk ? 'idle' : 'far',
+        ax: (rs.x + ls.x) / 2, ay: ((rs.y + ls.y) / 2) * aspect,
+      });
+    }
+    return out;
+  }
+
+  /** Decide quién controla: mantiene el bloqueo o adquiere a quien sostiene la mano levantada. */
+  private select(people: Person[], now: number): Person | null {
+    const lock = this.lock;
+    if (lock) {
+      let best: Person | null = null;
+      let bestD = Infinity;
+      for (const p of people) {
+        if (Math.abs(p.S - lock.S) / lock.S > MEDIAPIPE.followSizeTolerance) continue;
+        const d = Math.hypot(p.ax - lock.ax, p.ay - lock.ay) / lock.S;
+        if (d < MEDIAPIPE.followRadius && d < bestD) {
+          best = p;
+          bestD = d;
+        }
+      }
+      if (best) {
+        lock.ax = best.ax;
+        lock.ay = best.ay;
+        lock.S = lock.S * 0.8 + best.S * 0.2;
+        lock.lastSeen = now;
+        if (best.raise >= MEDIAPIPE.keepMargin) {
+          lock.handDownSince = null;
+        } else {
+          lock.handDownSince ??= now;
+          if (now - lock.handDownSince > MEDIAPIPE.releaseMs) {
+            this.lock = null;
+            return null;
+          }
+        }
+        best.role = 'locked';
+        return best;
+      }
+      if (now - lock.lastSeen > MEDIAPIPE.lostMs) this.lock = null;
+      return null;
+    }
+
+    // Sin usuario activo: el candidato debe sostener la mano levantada acquireMs.
+    let cand: Person | null = null;
+    for (const p of people) {
+      if (p.sizeOk && p.raise >= MEDIAPIPE.raiseMargin && (!cand || p.S > cand.S)) cand = p;
+    }
+    if (!cand) {
+      this.cand = null;
+      return null;
+    }
+    cand.role = 'candidate';
+    const c = this.cand;
+    if (!c || Math.hypot(cand.ax - c.ax, cand.ay - c.ay) / cand.S > MEDIAPIPE.followRadius) {
+      this.cand = { ax: cand.ax, ay: cand.ay, S: cand.S, since: now };
+      return null;
+    }
+    c.ax = cand.ax;
+    c.ay = cand.ay;
+    c.S = cand.S;
+    if (now - c.since >= MEDIAPIPE.acquireMs) {
+      this.lock = { ax: cand.ax, ay: cand.ay, S: cand.S, lastSeen: now, handDownSince: null };
+      this.cand = null;
+      cand.role = 'locked';
+      return cand;
+    }
+    return null;
+  }
+
   private loop = (): void => {
     if (this.stopped) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -130,47 +250,25 @@ export class MediaPipeInput implements InputProvider {
     this.lastVideoTime = v.currentTime;
     const now = performance.now();
     const result = lm.detectForVideo(v, now);
+    const aspect = v.videoHeight / v.videoWidth;
 
-    // Persona objetivo: la más cercana (hombros más anchos) con la mano derecha levantada.
-    let best: { lms: NormalizedLandmark[]; width: number } | null = null;
-    for (const lms of result.landmarks) {
-      const rs = lms[R_SHOULDER];
-      const ls = lms[L_SHOULDER];
-      const el = lms[R_ELBOW];
-      const wr = lms[R_WRIST];
-      if (!visible(rs) || !visible(ls) || !visible(el) || !visible(wr)) continue;
-      if (wr.y > el.y) continue; // mano por debajo del codo: no está levantada
-      const width = Math.abs(rs.x - ls.x);
-      if (!best || width > best.width) best = { lms, width };
-    }
-
-    // Para la vista previa: si nadie levanta la mano, mostrar igual a la persona más cercana.
-    let shown = best?.lms ?? null;
-    if (!shown) {
-      let w = 0;
-      for (const lms of result.landmarks) {
-        const a = lms[R_SHOULDER];
-        const b = lms[L_SHOULDER];
-        if (a && b && Math.abs(a.x - b.x) > w) {
-          w = Math.abs(a.x - b.x);
-          shown = lms;
-        }
-      }
-    }
+    const people = this.measure(result.landmarks, aspect);
+    const user = this.select(people, now);
+    link.people = people.length;
+    link.lock = this.lock ? 'locked' : this.cand ? 'candidate' : 'none';
 
     let hand: { x: number; y: number } | null = null;
-    if (best) {
-      const { lms, width } = best;
-      const aspect = v.videoHeight / v.videoWidth;
+    if (user && user.raise >= MEDIAPIPE.keepMargin) {
+      const { lms, S } = user;
       const rs = lms[R_SHOULDER] as NormalizedLandmark;
       const tip = lms[R_INDEX];
       const h = visible(tip) ? tip : (lms[R_WRIST] as NormalizedLandmark);
-      const S = Math.max(0.02, width);
       // Espejo en X; Y escalada a "unidades de ancho"; ambas en anchos de hombro desde el hombro derecho.
       const u = (1 - h.x - (1 - rs.x)) / S;
       const vv = ((h.y - rs.y) * aspect) / S;
       rawHand.u = u;
       rawHand.v = vv;
+      rawHand.s = S;
       rawHand.valid = true;
       hand = {
         x: Math.min(1, Math.max(0, (u - calibration.offsetX) / calibration.reachWidth + 0.5)),
@@ -194,10 +292,10 @@ export class MediaPipeInput implements InputProvider {
     }
     pushSample({ x: this.lastX, y: this.lastY, tracked: this.tracked });
 
-    if (this.preview) this.drawPreview(v, shown);
+    if (this.preview) this.drawPreview(v, people, user);
   };
 
-  private drawPreview(v: HTMLVideoElement, lms: NormalizedLandmark[] | null): void {
+  private drawPreview(v: HTMLVideoElement, people: Person[], user: Person | null): void {
     const c = this.preview;
     const ctx = c?.getContext('2d');
     if (!c || !ctx) return;
@@ -205,11 +303,24 @@ export class MediaPipeInput implements InputProvider {
     ctx.scale(-1, 1); // espejo
     ctx.drawImage(v, -c.width, 0, c.width, c.height);
     ctx.restore();
-    if (!lms || !visible(lms[R_SHOULDER]) || !visible(lms[L_SHOULDER])) return;
-    const rs = lms[R_SHOULDER] as NormalizedLandmark;
-    const ls = lms[L_SHOULDER] as NormalizedLandmark;
-    const S = Math.abs(rs.x - ls.x);
     const aspect = v.videoHeight / v.videoWidth;
+
+    // Todas las personas: verde = usuario activo, amarillo = candidato, rojo = fuera de rango, gris = quieta.
+    const colors: Record<Person['role'], string> = { locked: '#3f3', candidate: '#ff0', far: '#f44', idle: '#aaa' };
+    for (const p of people) {
+      const rs = p.lms[R_SHOULDER] as NormalizedLandmark;
+      const ls = p.lms[L_SHOULDER] as NormalizedLandmark;
+      ctx.strokeStyle = colors[p.role];
+      ctx.lineWidth = p.role === 'locked' ? 5 : 3;
+      ctx.beginPath();
+      ctx.moveTo((1 - rs.x) * c.width, rs.y * c.height);
+      ctx.lineTo((1 - ls.x) * c.width, ls.y * c.height);
+      ctx.stroke();
+    }
+
+    if (!user) return;
+    const rs = user.lms[R_SHOULDER] as NormalizedLandmark;
+    const S = user.S;
     // Zona de alcance en coordenadas de imagen espejada.
     const cx = 1 - rs.x + calibration.offsetX * S;
     const cy = rs.y + (calibration.offsetY * S) / aspect;
@@ -218,15 +329,13 @@ export class MediaPipeInput implements InputProvider {
     ctx.strokeStyle = '#ff0';
     ctx.lineWidth = 2;
     ctx.strokeRect((cx - bw / 2) * c.width, (cy - bh / 2) * c.height, bw * c.width, bh * c.height);
-    const tip = lms[R_INDEX];
-    const h = visible(tip) ? tip : (lms[R_WRIST] as NormalizedLandmark);
-    const px = (1 - h.x) * c.width;
-    const py = h.y * c.height;
+    const tip = user.lms[R_INDEX];
+    const h = visible(tip) ? tip : (user.lms[R_WRIST] as NormalizedLandmark);
     ctx.fillStyle = this.tracked ? '#3f3' : '#f44';
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(px, py, 12, 0, Math.PI * 2);
+    ctx.arc((1 - h.x) * c.width, h.y * c.height, 12, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
