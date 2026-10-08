@@ -1,4 +1,5 @@
 import { STAGE } from '../config/experience';
+import { touchActivity } from '../state/activity';
 import type { InputKind, InputSample, LinkStatus } from './InputProvider';
 
 /**
@@ -13,6 +14,8 @@ export const cursor = {
   progress: 0,
   color: 'var(--white)',
   hoverId: null as string | null,
+  /** Momento en que se perdió la mano (null si está siendo seguida). */
+  lostAt: null as number | null,
 };
 
 export const link = {
@@ -28,10 +31,16 @@ const trackedListeners = new Set<Listener>();
 const activateListeners = new Set<Listener>();
 
 export function pushSample(s: InputSample): void {
-  cursor.x = s.x * STAGE.width;
-  cursor.y = s.y * STAGE.height;
+  const nx = s.x * STAGE.width;
+  const ny = s.y * STAGE.height;
+  // Mover el cursor cuenta como actividad (evita que la inactividad cierre la sesión).
+  if (s.tracked && Math.hypot(nx - cursor.x, ny - cursor.y) > 12) touchActivity();
+  cursor.x = nx;
+  cursor.y = ny;
   if (cursor.tracked !== s.tracked) {
     cursor.tracked = s.tracked;
+    cursor.lostAt = s.tracked ? null : performance.now();
+    if (s.tracked) touchActivity();
     trackedListeners.forEach((l) => l());
   }
 }

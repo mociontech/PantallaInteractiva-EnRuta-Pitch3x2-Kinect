@@ -11,7 +11,8 @@
     "server:dev": "tsx watch server/src/index.ts",
     "start": "npm run build && npm run server",
     "typecheck": "tsc --noEmit && tsc --noEmit -p server/tsconfig.json",
-    "server:smoke": "tsx server/smoke.ts"
+    "server:smoke": "tsx server/smoke.ts",
+    "e2e": "node server/e2e.mjs"
   },
   "dependencies": {
     "@fontsource/montserrat": "^5.3.0",

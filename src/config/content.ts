@@ -103,6 +103,11 @@ export const TEXT = {
     subtitle: 'Todo lo que necesitas en una sola plataforma.',
     prompt: 'Levanta tu mano derecha para comenzar.',
     cta: 'Comenzar',
+    // Con registro en tablet (el diseño de creatividad aún no define estos textos). [CONFIRMAR]
+    registerPrompt: 'Regístrate en la tablet para comenzar.',
+    connecting: 'Conectando con el servidor…',
+    hello: (nombre: string) => `Hola, ${nombre}`,
+    raise: 'Levanta tu mano derecha para comenzar.',
   },
   home: { title: 'Tu ruta en 5 pasos simples', exit: 'SALIR' },
 

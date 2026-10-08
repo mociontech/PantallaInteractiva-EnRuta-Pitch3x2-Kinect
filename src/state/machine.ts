@@ -1,3 +1,4 @@
+import type { AssignedParticipant } from '../../shared/protocol';
 import type { AreaId, SolutionId } from '../config/content';
 import { SCORE } from '../config/experience';
 
@@ -30,12 +31,14 @@ export interface SessionState {
   solutionsViewed: readonly SolutionId[];
   gameScore: number;
   sessionId: string | null;
+  /** Persona asignada desde la tablet de registro (null si no hay servidor). */
+  participant: AssignedParticipant | null;
   startedAt: number | null;
   endedAt: number | null;
 }
 
 export type Action =
-  | { type: 'START' }
+  | { type: 'START'; participant?: AssignedParticipant }
   | { type: 'CALIBRATE' }
   | { type: 'GO'; to: Screen }
   | { type: 'COMPLETE_STATION'; n: number }
@@ -61,6 +64,7 @@ export const initialState: SessionState = {
   solutionsViewed: [],
   gameScore: 0,
   sessionId: null,
+  participant: null,
   startedAt: null,
   endedAt: null,
 };
@@ -102,7 +106,7 @@ export function reducer(s: SessionState, a: Action): SessionState {
   switch (a.type) {
     case 'START':
       if (s.screen !== 'idle') return s;
-      return { ...initialState, screen: 'instructions', sessionId: newSessionId(), startedAt: Date.now() };
+      return { ...initialState, screen: 'instructions', sessionId: newSessionId(), participant: a.participant ?? null, startedAt: Date.now() };
 
     case 'CALIBRATE':
       return go(s, 'calibration');

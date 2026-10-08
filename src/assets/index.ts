@@ -2,10 +2,13 @@
 import bgIdle from './bg/bg-idle.webp';
 import bgSwoosh from './bg/bg-swoosh.webp';
 import bgPlain from './bg/bg-plain.webp';
+import tabletBgIdle from './tablet/bg-idle.webp';
+import logoTablet from './logo/logo-tablet.svg';
 import logoWordmark from './logo/wordmark.svg';
 import logoMark from './logo/mark.svg';
 import logoMarkDetail from './logo/mark-detail.svg';
 import logoSub from './logo/sub.svg';
+import fieldUserIcon from './icons/field-user.svg';
 import areaAprenderIcon from './icons/area-aprender.svg';
 import areaAprenderS2Icon from './icons/area-aprender-s2.svg';
 import areaConectarIcon from './icons/area-conectar.svg';
@@ -41,10 +44,13 @@ import solProgramasIcon from './icons/sol-programas.svg';
 
 export const BG = { idle: bgIdle, swoosh: bgSwoosh, plain: bgPlain } as const;
 export type BgKind = keyof typeof BG;
+/** Tablet de registro (/registro): fondo de inicio y logo sin la leyenda EMPRESARIAL. */
+export const TABLET = { bgIdle: tabletBgIdle, bgForm: bgSwoosh, logo: logoTablet } as const;
 export const LOGO = { wordmark: logoWordmark, mark: logoMark, markDetail: logoMarkDetail, sub: logoSub } as const;
 
 /** Iconos por nombre (los usan content.ts y los componentes). */
 export const ICONS: Record<string, string> = {
+  'field-user': fieldUserIcon,
   'area-aprender': areaAprenderIcon,
   'area-aprender-s2': areaAprenderS2Icon,
   'area-conectar': areaConectarIcon,
@@ -80,4 +86,6 @@ export const ICONS: Record<string, string> = {
 };
 
 /** Todas las imágenes, para precargar antes de mostrar IDLE (Fase 4). */
-export const ALL_IMAGES: readonly string[] = [...Object.values(BG), ...Object.values(LOGO), ...Object.values(ICONS)];
+export const ALL_IMAGES: readonly string[] = [
+  ...Object.values(BG), ...Object.values(LOGO), ...Object.values(ICONS), ...Object.values(TABLET),
+];

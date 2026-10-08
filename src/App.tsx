@@ -1,5 +1,11 @@
 import { useEffect } from 'react';
+import { InactivityPrompt } from './components/InactivityPrompt/InactivityPrompt';
 import { STATIC_MODE, requestedScreen } from './config/mode';
+import { REGISTRATION } from './config/registration';
+import { serverLink } from './services/serverLink';
+import { touchActivity } from './state/activity';
+import { useInactivity } from './state/useInactivity';
+import { useWallSync } from './state/useWallSync';
 import { KinectCursor } from './components/KinectCursor/KinectCursor';
 import { Stage } from './components/Stage/Stage';
 import { TransitionOverlay } from './components/TransitionOverlay/TransitionOverlay';
@@ -32,11 +38,14 @@ function Current() {
     if (to) act({ type: 'DEBUG_JUMP', to });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useWallSync();
+  const warn = useInactivity();
   const View = SCREENS[state.screen];
   return (
     <>
       <View key={state.screen} />
       <Frame />
+      {warn !== null && <InactivityPrompt secondsLeft={warn} onContinue={touchActivity} />}
       <TransitionOverlay active={transitioning} />
     </>
   );
@@ -45,6 +54,13 @@ function Current() {
 export function App() {
   const debug = isDebug();
   useInputProvider();
+
+  // Con registro, la pared se conecta al servidor local para recibir a quien se registre en la tablet.
+  useEffect(() => {
+    if (!REGISTRATION.enabled) return undefined;
+    serverLink.start();
+    return () => serverLink.stop();
+  }, []);
 
   useEffect(() => {
     document.body.dataset.kiosk = debug ? 'false' : 'true';

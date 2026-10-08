@@ -13,3 +13,8 @@ export function requestedScreen(): Screen | null {
   const q = params.get('screen');
   return SCREEN_ORDER.find((s) => s === q) ?? null;
 }
+
+/** Desarrollo o ?debug=1: herramientas de depuración visibles y la inactividad apagada. */
+export function isDebugMode(): boolean {
+  return import.meta.env.DEV || params.get('debug') === '1';
+}

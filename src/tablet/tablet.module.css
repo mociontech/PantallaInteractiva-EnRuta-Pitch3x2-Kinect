@@ -1,0 +1,190 @@
+/* Tablet de registro: escenario fijo de 1920×1200 (16:10) escalado al tamaño real de la tablet. */
+.wrap {
+  position: fixed;
+  inset: 0;
+  background: var(--navy);
+  overflow: hidden;
+  touch-action: manipulation;
+}
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1200px;
+  transform-origin: center;
+  background: var(--navy);
+  overflow: hidden;
+}
+.bg { position: absolute; left: 0; top: 0; width: 1920px; height: 1200px; object-fit: cover; pointer-events: none; }
+.abs { position: absolute; }
+.logo { position: absolute; pointer-events: none; }
+
+.fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.attractText {
+  position: absolute;
+  left: 235px;
+  top: 706px;
+  width: 1450px;
+  text-align: center;
+  font-size: 76px;
+  line-height: 107px;
+  font-weight: 800;
+  color: var(--white);
+  pointer-events: none;
+  animation: breathe 2.6s ease-in-out infinite;
+}
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+.title {
+  position: absolute;
+  left: 519px;
+  width: 882px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--orange);
+}
+
+/* Campo blanco (diseño: 882×99, radio 24) */
+.field {
+  position: absolute;
+  left: 519px;
+  width: 882px;
+  height: 99px;
+  background: var(--white);
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+}
+.fieldIcon { position: absolute; left: 61px; top: 29px; width: 26px; height: 41px; pointer-events: none; }
+.input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0 40px 0 145px;
+  font-family: var(--font);
+  font-weight: 400;
+  font-size: 40px;
+  color: var(--navy);
+  border-radius: 24px;
+}
+.input::placeholder { color: var(--navy); opacity: 0.75; }
+.input:focus { box-shadow: 0 0 0 5px var(--orange); }
+.fieldBad .input { box-shadow: 0 0 0 5px #ff3b30; }
+
+/* Botón naranja (diseño: 684×133, radio 66,5, texto Bold 65 px blanco) */
+.btn {
+  position: absolute;
+  left: 619px;
+  width: 684px;
+  height: 133px;
+  border: 0;
+  border-radius: 66.5px;
+  background: var(--orange);
+  color: var(--white);
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 65px;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btnWide { left: 519px; width: 882px; height: 120px; border-radius: 60px; font-size: 52px; }
+.btnGhost { background: transparent; border: 5px solid var(--white); }
+
+/* "Regístrate" y "Volver" */
+.link {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  font-family: var(--font);
+  color: var(--white);
+  cursor: pointer;
+  padding: 8px 24px;
+}
+.linkBig { left: 534px; width: 852px; text-align: center; font-weight: 400; font-size: 48.75px; }
+.linkBack { left: 72px; top: 72px; font-weight: 600; font-size: 40px; }
+
+.error {
+  position: absolute;
+  left: 519px;
+  width: 882px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 600;
+  color: var(--white);
+  background: rgba(255, 115, 0, 0.28);
+  border: 3px solid var(--orange);
+  border-radius: 24px;
+  padding: 16px 28px;
+}
+
+/* Autorización de datos */
+.consent {
+  position: absolute;
+  left: 519px;
+  width: 882px;
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: var(--font);
+  color: var(--white);
+  cursor: pointer;
+}
+.box {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  border: 5px solid var(--white);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--navy);
+  margin-top: 6px;
+}
+.boxOn { background: var(--orange); border-color: var(--orange); color: var(--white); }
+.boxBad { border-color: #ff3b30; }
+.consentText { font-size: 30px; line-height: 38px; font-weight: 600; }
+
+/* Confirmación */
+.check {
+  position: absolute;
+  left: 880px;
+  top: 330px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 100px;
+  font-weight: 800;
+}
+.hello { position: absolute; left: 110px; top: 520px; width: 1700px; text-align: center; font-size: 100px; line-height: 110px; font-weight: 800; color: var(--white); }
+.sub { position: absolute; left: 260px; top: 660px; width: 1400px; text-align: center; font-size: 56px; line-height: 68px; font-weight: 600; color: var(--white); }
+.hint { position: absolute; left: 260px; top: 820px; width: 1400px; text-align: center; font-size: 36px; line-height: 44px; font-weight: 400; color: var(--white); opacity: 0.85; }

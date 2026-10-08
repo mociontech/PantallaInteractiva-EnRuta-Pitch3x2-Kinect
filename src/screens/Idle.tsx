@@ -6,6 +6,9 @@ import { Icon } from '../components/Icon/Icon';
 import { Logo } from '../components/Logo/Logo';
 import { IDLE_CATEGORIES, TEXT } from '../config/content';
 import { TIMING } from '../config/experience';
+import { REGISTRATION } from '../config/registration';
+import { greetingName } from '../tablet/content';
+import { useServerLink } from '../services/serverLink';
 import { useTracked } from '../input/useCursor';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
@@ -19,6 +22,11 @@ const CAT_TOP = 735;
 export function Idle() {
   const { act } = useSession();
   const tracked = useTracked();
+  const link = useServerLink();
+  const reg = REGISTRATION.enabled;
+  // Con registro: solo se puede empezar si la tablet dejó a alguien asignado.
+  const assigned = reg ? link.assigned : null;
+  const canStart = tracked && (!reg || assigned !== null);
 
   // Operador: tecla C abre la calibración.
   useEffect(() => {
@@ -82,15 +90,21 @@ export function Idle() {
         );
       })}
 
-      <p style={{ ...at(96, 1033, 1001), margin: 0, fontSize: 51, lineHeight: '55px', fontWeight: 800, color: 'var(--white)' }}>
-        {TEXT.idle.prompt}
+      <p style={{ ...at(96, 1033, 1100), margin: 0, fontSize: 51, lineHeight: '55px', fontWeight: 800, color: 'var(--white)' }}>
+        {!reg ? TEXT.idle.prompt : assigned ? (
+          <>
+            <span style={{ color: 'var(--orange)' }}>{TEXT.idle.hello(greetingName(assigned.nombre))}</span>
+            <br />
+            {TEXT.idle.raise}
+          </>
+        ) : link.connected ? TEXT.idle.registerPrompt : TEXT.idle.connecting}
       </p>
       <CTAButton
         id="idle-start"
         label={TEXT.idle.cta}
         dwellMs={TIMING.dwellCtaMs}
-        disabled={!tracked}
-        onActivate={() => act({ type: 'START' })}
+        disabled={!canStart}
+        onActivate={() => act({ type: 'START', participant: assigned ?? undefined })}
         style={{ position: 'absolute', left: 1359, top: 1018 }}
       />
     </div>
