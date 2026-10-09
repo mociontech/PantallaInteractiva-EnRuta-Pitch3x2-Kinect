@@ -8,12 +8,11 @@ const W = 1920;
 const H = 1200;
 const IDLE_RESET_MS = 60_000;
 const DONE_RESET_MS = 15_000;
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 type Screen =
   | { name: 'attract' }
   | { name: 'cedula' }
-  | { name: 'datos'; prefillNombre: string }
+  | { name: 'datos' }
   | { name: 'listo'; queueId: number; nombre: string; position: number };
 
 function Logo({ x, y, width }: { x: number; y: number; width: number }) {
@@ -30,20 +29,13 @@ function Field({ y, bad, icon, children }: { y: number; bad?: boolean; icon?: Re
 }
 
 const userIcon = <img alt="" src={ICONS['field-user']} className={s.fieldIcon} />;
-const mailIcon = (
-  <svg className={s.fieldIcon} viewBox="0 0 28 28" fill="none" stroke="#02245b" strokeWidth="2.2" strokeLinejoin="round" style={{ top: 32, width: 30, height: 30 }}>
-    <rect x="2" y="5" width="24" height="18" rx="3" />
-    <path d="M3 8l11 8 11-8" />
-  </svg>
-);
-
 /** Para revisar el diseño sin recorrer el flujo: /registro?s=cedula|datos|listo|espera (solo con ?debug=1 o en desarrollo). */
 function initialScreen(): Screen {
   const q = new URLSearchParams(window.location.search);
   if (!import.meta.env.DEV && q.get('debug') !== '1') return { name: 'attract' };
   switch (q.get('s')) {
     case 'cedula': return { name: 'cedula' };
-    case 'datos': return { name: 'datos', prefillNombre: '' };
+    case 'datos': return { name: 'datos' };
     case 'listo': return { name: 'listo', queueId: 0, nombre: 'Ana María Pérez Gómez', position: 0 };
     case 'espera': return { name: 'listo', queueId: 0, nombre: 'Ana María Pérez Gómez', position: 2 };
     default: return { name: 'attract' };
@@ -52,14 +44,13 @@ function initialScreen(): Screen {
 
 /**
  * Tablet de registro. El diseño de creatividad cubre: inicio, validación de cédula y el enlace "Regístrate".
- * Las pantallas de datos de nuevo usuario y de confirmación siguen su estilo (pendientes de diseño).
+ * Las pantallas de nuevo usuario (cédula y nombre) y de confirmación siguen su estilo (pendientes de diseño).
  */
 export function TabletApp() {
   const [scale, setScale] = useState(1);
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [cedula, setCedula] = useState('');
   const [nombre, setNombre] = useState('');
-  const [correo, setCorreo] = useState('');
   const [consent, setConsent] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
@@ -78,7 +69,6 @@ export function TabletApp() {
     setScreen({ name: 'attract' });
     setCedula('');
     setNombre('');
-    setCorreo('');
     setConsent(false);
     setMessage(null);
     setTouched(false);
@@ -132,9 +122,8 @@ export function TabletApp() {
       } else if (r.status === 'queued') {
         setScreen({ name: 'listo', queueId: r.queueId, nombre: r.nombre, position: r.position });
       } else {
-        setNombre(r.nombre ?? '');
         setTouched(false);
-        setScreen({ name: 'datos', prefillNombre: r.nombre ?? '' });
+        setScreen({ name: 'datos' });
       }
     } catch (err) {
       fail(err);
@@ -149,19 +138,17 @@ export function TabletApp() {
     if (busy) return;
     if (needsCedula) return setMessage(T.cedula.invalid);
     if (nombre.trim().length < 3) return setMessage(T.datos.invalidName);
-    if (!EMAIL.test(correo.trim())) return setMessage(T.datos.invalidEmail);
     if (!consent) return setMessage(T.datos.consentRequired);
     setBusy(true);
     setMessage(null);
     try {
-      const r = await api.registerNew({ cedula, nombre: nombre.trim(), correo: correo.trim(), consent });
+      const r = await api.registerNew({ cedula, nombre: nombre.trim(), consent });
       if (!r.ok) {
         setMessage(
           r.error === 'invalid_name' ? T.datos.invalidName
-            : r.error === 'invalid_email' ? T.datos.invalidEmail
-              : r.error === 'consent_required' ? T.datos.consentRequired
-                : r.error === 'invalid_cedula' ? T.cedula.invalid
-                  : r.error === 'already_played' ? T.errors.alreadyPlayed : T.errors.server,
+            : r.error === 'consent_required' ? T.datos.consentRequired
+              : r.error === 'invalid_cedula' ? T.cedula.invalid
+                : r.error === 'already_played' ? T.errors.alreadyPlayed : T.errors.server,
         );
       } else if (r.status === 'queued') {
         setScreen({ name: 'listo', queueId: r.queueId, nombre: r.nombre, position: r.position });
@@ -226,7 +213,7 @@ export function TabletApp() {
               onClick={() => {
                 setMessage(null);
                 setTouched(false);
-                setScreen({ name: 'datos', prefillNombre: '' });
+                setScreen({ name: 'datos' });
               }}
             >
               {T.cedula.register}
@@ -236,18 +223,15 @@ export function TabletApp() {
 
         {screen.name === 'datos' && (
           <DatosForm
-            confirm={screen.prefillNombre !== ''}
             needsCedula={cedula.length < 5}
             cedula={cedula}
             nombre={nombre}
-            correo={correo}
             consent={consent}
             touched={touched}
             busy={busy}
             message={message}
             onCedula={(v) => { setCedula(v); setMessage(null); }}
             onNombre={(v) => { setNombre(v); setMessage(null); }}
-            onCorreo={(v) => { setCorreo(v); setMessage(null); }}
             onConsent={() => { setConsent((c) => !c); setMessage(null); }}
             onBack={() => { setMessage(null); setScreen({ name: 'cedula' }); }}
             onSubmit={() => void submitDatos()}
@@ -276,19 +260,15 @@ export function TabletApp() {
 }
 
 interface DatosProps {
-  /** La base ya conocía a la persona (nombre prefijado): solo falta el correo. */
-  confirm: boolean;
   needsCedula: boolean;
   cedula: string;
   nombre: string;
-  correo: string;
   consent: boolean;
   touched: boolean;
   busy: boolean;
   message: string | null;
   onCedula: (v: string) => void;
   onNombre: (v: string) => void;
-  onCorreo: (v: string) => void;
   onConsent: () => void;
   onBack: () => void;
   onSubmit: () => void;
@@ -302,7 +282,6 @@ function DatosForm(p: DatosProps) {
   const y = (): number => first + step * row++;
   const yCedula = p.needsCedula ? y() : 0;
   const yNombre = y();
-  const yCorreo = y();
   const yConsent = first + step * row + 4;
   const yButton = yConsent + 150;
   return (
@@ -311,9 +290,9 @@ function DatosForm(p: DatosProps) {
       <Logo x={680} y={60} width={560} />
       <div
         className={s.title}
-        style={{ top: 205, height: 90, fontSize: p.confirm ? 72 : 80, lineHeight: '90px', left: 360, width: 1200, whiteSpace: 'nowrap' }}
+        style={{ top: 205, height: 90, fontSize: 80, lineHeight: '90px', left: 360, width: 1200, whiteSpace: 'nowrap' }}
       >
-        {p.confirm ? T.datos.confirmTitle : T.datos.title}
+        {T.datos.title}
       </div>
 
       {p.needsCedula && (
@@ -330,16 +309,6 @@ function DatosForm(p: DatosProps) {
           className={s.input} type="text" autoComplete="off" autoCapitalize="words" maxLength={120}
           placeholder={T.datos.nombre} value={p.nombre} enterKeyHint="next"
           onChange={(e) => p.onNombre(e.target.value)}
-        />
-      </Field>
-      <Field y={yCorreo} icon={mailIcon} bad={p.touched && !EMAIL.test(p.correo.trim())}>
-        <input
-          className={s.input} type="email" inputMode="email" autoComplete="off" autoCapitalize="none" maxLength={120}
-          placeholder={T.datos.correo} value={p.correo} enterKeyHint="done"
-          onChange={(e) => p.onCorreo(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          }}
         />
       </Field>
 

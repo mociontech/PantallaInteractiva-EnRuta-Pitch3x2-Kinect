@@ -13,18 +13,14 @@ export const T = {
 
   datos: {
     title: 'REGÍSTRATE',
-    // Cuando la base ya trae el nombre pero no el correo.
-    confirmTitle: 'CONFIRMA TUS DATOS',
     cedula: 'Cédula',
     nombre: 'Nombre completo',
-    correo: 'Correo electrónico',
     // [CONFIRMAR] texto legal definitivo del cliente (Ley 1581 de 2012: autorización de tratamiento de datos).
     consent:
-      'Autorizo el tratamiento de mis datos personales (cédula, nombre y correo) para participar en las experiencias del evento y asociar mi puntaje.',
+      'Autorizo el tratamiento de mis datos personales (cédula y nombre) para participar en las experiencias del evento y asociar mi puntaje.',
     cta: 'Continuar',
     back: 'Volver',
     invalidName: 'Escribe tu nombre completo.',
-    invalidEmail: 'Revisa tu correo electrónico.',
     consentRequired: 'Debes aceptar la autorización para continuar.',
   },
 

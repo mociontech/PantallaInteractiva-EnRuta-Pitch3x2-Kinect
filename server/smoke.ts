@@ -59,16 +59,14 @@ const bad = await post<RegisterResponse>('/api/register/new', { cedula: '9998887
 check('sin consentimiento se rechaza', !bad.ok && bad.error === 'consent_required', bad);
 const badMail = await post<RegisterResponse>('/api/register/new', { cedula: '999888777', nombre: 'Pedro Nuevo', correo: 'pedro@', consent: true });
 check('correo inválido se rechaza', !badMail.ok && badMail.error === 'invalid_email', badMail);
-const r3 = await post<RegisterResponse>('/api/register/new', { cedula: '999888777', nombre: 'Pedro  Nuevo', correo: 'Pedro@Ejemplo.com', consent: true });
+const r3 = await post<RegisterResponse>('/api/register/new', { cedula: '999888777', nombre: 'Pedro  Nuevo', consent: true });
 check('nuevo usuario queda en la cola (1 persona delante)', r3.ok && r3.status === 'queued' && r3.position === 1, r3);
 
-// 4. Base sin correo (lo habitual): pide el correo, con el nombre ya formateado
+// 4. Base sin correo (lo habitual): entra directo, con el nombre ya formateado
 const r4 = await post<RegisterResponse>('/api/register', { cedula: '1000000004' });
-check('base sin correo pide correo con nombre', r4.ok && r4.status === 'new' && r4.nombre === 'Jorge Herrera', r4);
+check('base sin correo entra directo a la cola', r4.ok && r4.status === 'queued' && r4.nombre === 'Jorge Herrera' && r4.position === 2, r4);
 const r5 = await post<RegisterResponse>('/api/register', { cedula: '1000000003' });
-check('apellido compuesto bien separado', r5.ok && r5.status === 'new' && r5.nombre === 'Luisa Fernanda de la Cruz Martinez', r5);
-const r6 = await post<RegisterResponse>('/api/register/new', { cedula: '1000000004', nombre: 'Jorge Herrera', correo: 'jorge@ejemplo.com', consent: true });
-check('completa el correo y entra a la cola', r6.ok && r6.status === 'queued', r6);
+check('apellido compuesto bien separado', r5.ok && r5.status === 'queued' && r5.nombre === 'Luisa Fernanda de la Cruz Martinez', r5);
 
 // 5. Ana juega y termina -> se guarda; Pedro es el siguiente al volver la pared a IDLE
 send({ t: 'session-start', localId: 'local-1' });
@@ -93,7 +91,7 @@ send({ t: 'wall-idle' });
 await wait(200);
 admin = await get<AdminState>('/api/admin/state');
 check('el abandono también se registra', admin.recent[0]?.nombre === 'Pedro Nuevo' && !admin.recent[0].completed, admin.recent[0]);
-check('la fila avanza: Jorge tiene el turno y no queda nadie esperando', admin.waiting.length === 0 && admin.active?.nombre === 'Jorge Herrera' && admin.wall === 'assigned', admin);
+check('la fila avanza: Jorge tiene el turno y Luisa espera', admin.waiting.length === 1 && admin.active?.nombre === 'Jorge Herrera' && admin.wall === 'assigned', admin);
 
 // 7. Operador
 const noPin = await fetch(base + '/api/admin/state');

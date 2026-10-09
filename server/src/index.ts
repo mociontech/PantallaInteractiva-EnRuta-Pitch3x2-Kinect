@@ -41,23 +41,18 @@ app.post('/api/register', (req, res) => {
   if (!p) {
     const a = attendees.find(cedula);
     if (!a) return res.json({ ok: true, status: 'new' } satisfies RegisterResponse);
-    if (!EMAIL.test(a.correo)) {
-      // La base la conoce pero sin un correo válido: lo necesitamos para Evius.
-      return res.json({ ok: true, status: 'new', nombre: a.nombre } satisfies RegisterResponse);
-    }
+    // Está en la base del cliente: entra directo. El correo es opcional (la base puede no traerlo).
     const id = run(
       'INSERT INTO participants (cedula, nombre, correo, origen, created_at) VALUES (?,?,?,?,?)',
-      a.cedula, a.nombre, a.correo, 'base', now(),
+      a.cedula, a.nombre, EMAIL.test(a.correo) ? a.correo : '', 'base', now(),
     );
     p = one<Participant>('SELECT * FROM participants WHERE id = ?', id);
-  } else if (!EMAIL.test(p.correo)) {
-    return res.json({ ok: true, status: 'new', nombre: p.nombre } satisfies RegisterResponse);
   }
   if (!p) return res.json({ ok: false, error: 'server_error' } satisfies RegisterResponse);
   return res.json(toQueue(p));
 });
 
-/** Paso 2 (solo si la cédula no estaba o faltaba el correo): nombre, correo y autorización de datos. */
+/** Paso 2 (solo si la cédula no está en la base): nombre y autorización de datos. El correo es opcional. */
 app.post('/api/register/new', (req, res) => {
   const body = req.body as { cedula?: unknown; nombre?: unknown; correo?: unknown; consent?: unknown };
   const cedula = normalizeCedula(typeof body.cedula === 'string' ? body.cedula : '');
@@ -68,7 +63,7 @@ app.post('/api/register/new', (req, res) => {
 
   if (!isValidCedula(cedula)) return fail('invalid_cedula');
   if (nombre.length < 3 || nombre.length > 120 || !/\p{L}/u.test(nombre)) return fail('invalid_name');
-  if (!EMAIL.test(correo) || correo.length > 120) return fail('invalid_email');
+  if (correo !== '' && (!EMAIL.test(correo) || correo.length > 120)) return fail('invalid_email');
   if (body.consent !== true) return fail('consent_required');
 
   let p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);

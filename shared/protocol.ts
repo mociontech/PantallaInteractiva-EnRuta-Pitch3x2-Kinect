@@ -50,8 +50,8 @@ export type RegisterError =
 
 export type RegisterResponse =
   | { ok: true; status: 'queued'; queueId: number; nombre: string; position: number }
-  /** Faltan datos: la tablet pide nombre, correo y autorización. `nombre` viene si la base ya lo tenía. */
-  | { ok: true; status: 'new'; nombre?: string }
+  /** La cédula no está en la base: la tablet pide nombre y autorización (el correo es opcional). */
+  | { ok: true; status: 'new' }
   | { ok: false; error: RegisterError };
 
 export interface QueueInfo {

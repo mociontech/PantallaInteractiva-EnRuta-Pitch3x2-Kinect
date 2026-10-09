@@ -1,0 +1,23 @@
+// Captura una URL con Edge headless (protocolo de depuración). Uso: node server/shot.mjs <url> <salida.png> [ancho] [alto]
+import WebSocket from 'ws';
+import { spawn } from 'node:child_process';
+import { writeFileSync, mkdtempSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+const [url, out, w = '1920', h = '1200'] = process.argv.slice(2);
+const EDGE = process.env.EDGE_PATH ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const edge = spawn(EDGE, ['--headless=new', '--disable-gpu', '--remote-debugging-port=9444', `--user-data-dir=${mkdtempSync(path.join(os.tmpdir(), 'edge-'))}`, '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+await wait(3000);
+const page = (await (await fetch('http://localhost:9444/json')).json()).find((t) => t.type === 'page');
+const ws = new WebSocket(page.webSocketDebuggerUrl);
+await new Promise((r) => ws.on('open', r));
+let id = 0; const pending = new Map();
+ws.on('message', (d) => { const m = JSON.parse(d); if (m.id && pending.has(m.id)) { pending.get(m.id)(m.result); pending.delete(m.id); } });
+const cdp = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+await cdp('Emulation.setDeviceMetricsOverride', { width: Number(w), height: Number(h), deviceScaleFactor: 1, mobile: false });
+await cdp('Page.navigate', { url });
+await wait(3500);
+writeFileSync(out, Buffer.from((await cdp('Page.captureScreenshot', { format: 'png' })).data, 'base64'));
+ws.close(); edge.kill();
+process.exit(0);

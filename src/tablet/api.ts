@@ -21,7 +21,7 @@ function post<T>(path: string, body: unknown): Promise<T> {
 
 export const api = {
   register: (cedula: string): Promise<RegisterResponse> => post('/api/register', { cedula }),
-  registerNew: (body: { cedula: string; nombre: string; correo: string; consent: boolean }): Promise<RegisterResponse> =>
+  registerNew: (body: { cedula: string; nombre: string; consent: boolean }): Promise<RegisterResponse> =>
     post('/api/register/new', body),
   queue: (id: number): Promise<QueueInfo> => request(`/api/queue/${id}`),
 };

@@ -14,8 +14,8 @@ Operador (/admin) ──HTTP──► servidor
 ## Flujo
 
 1. En la **tablet** la persona escribe su cédula.
-2. El servidor la busca en la base de asistentes (el Sheet del cliente). Si está, trae nombre y correo; si no (o falta el correo),
-   la tablet pide **nombre, correo y autorización de datos** y la registra como nueva.
+2. El servidor la busca en la base de asistentes (el Sheet del cliente). Si está, trae el nombre y entra directo (la base no trae correo ni hace falta);
+   si no está, la tablet pide **nombre y autorización de datos** y la registra como nueva.
 3. Entra a la **fila**. Cuando la pared está libre, la pared saluda por su nombre ("Hola, Ana María") y habilita **Comenzar**.
 4. La persona juega. Al terminar (o si abandona / se va por inactividad) la pared envía el **puntaje** al servidor.
 5. El servidor lo guarda y lo manda a **Evius** (con cola y reintentos: sin internet se envía después). La pared vuelve a IDLE y pasa la siguiente persona.
@@ -70,12 +70,11 @@ Columnas: solo hacen falta **identificación (cédula)** y **nombre**; el **corr
 tildes ni mayúsculas ("Identificación", "Nombre de Empleado", "Correo corporativo"…); el resto de columnas ("Cargo de Trabajo") se ignora.
 Las cédulas se comparan solo por dígitos (`72.345.678` = `72345678`).
 
-- **Sin correo en la base** (el caso actual): la tablet muestra "Confirma tus datos" con el nombre ya puesto (editable) y pide solo el **correo**
-  y la autorización. Queda guardado, así que la próxima vez esa cédula entra directo.
+- **Sin correo:** el correo no se usa. Quien está en la base entra con solo la cédula (la tablet le muestra "¡Listo, Ana Maria!"). El servidor lo acepta si algún día se envía.
 - **Formato del nombre:** viene en MAYÚSCULAS y como "APELLIDOS NOMBRES" (`NAME_ORDER=apellidos-nombres`, por defecto). Se convierte a
   "Nombres Apellidos" en formato Título (`PEREZ GOMEZ ANA MARIA` → `Ana Maria Perez Gomez`; reconoce `DE LA`, `DEL`…). La separación es una heurística
-  y la persona corrige su nombre en la tablet. Si la base viene "NOMBRES APELLIDOS", usa `NAME_ORDER=nombres-apellidos`.
-- **Personas que no están en la base** pueden registrarse en la tablet ("Regístrate") con cédula, nombre y correo.
+  pasa tal cual a la pared y a Evius (revisa que se vea bien con un par de personas reales). Si la base viene "NOMBRES APELLIDOS", usa `NAME_ORDER=nombres-apellidos`.
+- **Personas que no están en la base** pueden registrarse en la tablet ("Regístrate") con cédula y nombre.
 - Opcional: `ATTENDEES_CSV_URL` lee un Sheet publicado por enlace (se relee cada 5 min); no se recomienda con datos de colaboradores.
 - Sin archivo ni URL se usa `server/data/asistentes.sample.csv` (datos de ejemplo).
 
@@ -86,7 +85,7 @@ URL, autenticación y campos se ajustan en `server/src/evius.ts` y en las variab
 
 - `EVIUS_MODE=mock`: registra en consola y los marca como enviados (para probar).
 - Sin `EVIUS_URL`: los envíos quedan **pendientes** (se ven en `/admin`) hasta que se configure.
-- Dato enviado por sesión: cédula, nombre, correo, puntaje total, si completó, último paso, puntos del juego, áreas elegidas, soluciones vistas, duración, pared y hora.
+- Dato enviado por sesión: cédula, nombre, puntaje total, si completó, último paso, puntos del juego, áreas elegidas, soluciones vistas, duración, pared y hora.
 
 ## Operador (`/admin`)
 
@@ -95,7 +94,7 @@ saltar el turno actual, vaciar la fila, **cargar el CSV de asistentes**, recarga
 
 ## Datos personales
 
-Se guardan cédula, nombre y correo (necesarios para unir los puntajes en Evius) **solo en el servidor local** (`server/data/enruta.db`) y en Evius.
+Se guardan cédula y nombre (para unir los puntajes en Evius) **solo en el servidor local** (`server/data/enruta.db`) y en Evius.
 La tablet muestra la autorización de tratamiento de datos antes de registrar a alguien nuevo. **[CONFIRMAR]** el texto legal definitivo
 (`src/tablet/content.ts`) y el tiempo de conservación.
 

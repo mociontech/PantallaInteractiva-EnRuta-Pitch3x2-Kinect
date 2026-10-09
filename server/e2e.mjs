@@ -64,7 +64,7 @@ check('el puntaje llegó al servidor y a Evius', st.recent[0]?.nombre?.startsWit
 await shot('e2e-3-resultado');
 
 // Otra persona se registra mientras la pared está en resultado: espera su turno
-const r2 = await api('/api/register/new', { method: 'POST', body: JSON.stringify({ cedula: '999000111', nombre: 'Pedro Prueba', correo: 'pedro@ejemplo.com', consent: true }) });
+const r2 = await api('/api/register/new', { method: 'POST', body: JSON.stringify({ cedula: '999000111', nombre: 'Pedro Prueba', consent: true }) });
 check('segunda persona en cola', r2.ok && r2.status === 'queued', r2);
 await wait(500);
 await key('r'); // reinicia a IDLE
