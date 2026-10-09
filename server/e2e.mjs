@@ -38,11 +38,11 @@ check('la pared espera registro', t.includes('Regístrate en la tablet'), t.slic
 await shot('e2e-1-espera');
 
 // La tablet registra a Ana (cédula de la base)
-const r = await api('/api/register', { method: 'POST', body: JSON.stringify({ cedula: '1000000001' }) });
+const r = await api('/api/register', { method: 'POST', body: JSON.stringify({ cedula: '1000000002' }) });
 check('registro en la tablet', r.ok && r.status === 'queued', r);
 await wait(800);
 t = await text();
-check('la pared saluda a Ana María', t.includes('Hola, Ana María'), t.slice(-200));
+check('la pared saluda a Carlos', t.includes('Hola, Carlos Rodriguez'), t.slice(-200));
 await shot('e2e-2-saludo');
 
 // Comenzar con el cursor (dwell 1,5 s sobre el botón)
@@ -54,13 +54,13 @@ t = await text();
 check('al comenzar pasa a las instrucciones', t.includes('Controla con tu mano'), t.slice(0, 200));
 await wait(300);
 let st = await api('/api/admin/state');
-check('el servidor marca la pared como jugando', st.wall === 'playing' && st.active?.nombre?.startsWith('Ana'), st);
+check('el servidor marca la pared como jugando', st.wall === 'playing' && st.active?.nombre?.startsWith('Carlos'), st);
 
 // Salto de depuración al resultado: el puntaje se envía
 await key('9');
 await wait(1500);
 st = await api('/api/admin/state');
-check('el puntaje llegó al servidor y a Evius', st.recent[0]?.nombre?.startsWith('Ana') && st.recent[0].completed === true && st.recent[0].evius === 'sent', st.recent);
+check('el puntaje llegó al servidor y a Evius', st.recent[0]?.nombre?.startsWith('Carlos') && st.recent[0].completed === true && st.recent[0].evius === 'sent', st.recent);
 await shot('e2e-3-resultado');
 
 // Otra persona se registra mientras la pared está en resultado: espera su turno

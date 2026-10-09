@@ -42,11 +42,11 @@ check('cédula inválida', (await post<RegisterResponse>('/api/register', { cedu
 // 2. Pared conectada y cédula conocida -> asignación inmediata
 send({ t: 'hello' });
 await wait(150);
-const r1 = await post<RegisterResponse>('/api/register', { cedula: '1.000.000.001' });
-check('cédula de la base entra a la cola', r1.ok && r1.status === 'queued' && r1.nombre === 'Ana María Pérez Gómez', r1);
+const r1 = await post<RegisterResponse>('/api/register', { cedula: '1.000.000.002' });
+check('cédula de la base entra a la cola', r1.ok && r1.status === 'queued' && r1.nombre === 'Carlos Rodriguez', r1);
 await wait(150);
 const a1 = inbox.find((m) => m.t === 'assign');
-check('la pared recibe la asignación', a1?.t === 'assign' && a1.participant.nombre.startsWith('Ana'), inbox);
+check('la pared recibe la asignación', a1?.t === 'assign' && a1.participant.nombre.startsWith('Carlos'), inbox);
 if (r1.ok && r1.status === 'queued') {
   const info = await get<QueueInfo>(`/api/queue/${r1.queueId}`);
   check('su turno está activo (posición 0)', info.status === 'active' && info.position === 0, info);
@@ -62,9 +62,13 @@ check('correo inválido se rechaza', !badMail.ok && badMail.error === 'invalid_e
 const r3 = await post<RegisterResponse>('/api/register/new', { cedula: '999888777', nombre: 'Pedro  Nuevo', correo: 'Pedro@Ejemplo.com', consent: true });
 check('nuevo usuario queda en la cola (1 persona delante)', r3.ok && r3.status === 'queued' && r3.position === 1, r3);
 
-// 4. Base sin correo -> pide el correo, con el nombre prefijado
+// 4. Base sin correo (lo habitual): pide el correo, con el nombre ya formateado
 const r4 = await post<RegisterResponse>('/api/register', { cedula: '1000000004' });
 check('base sin correo pide correo con nombre', r4.ok && r4.status === 'new' && r4.nombre === 'Jorge Herrera', r4);
+const r5 = await post<RegisterResponse>('/api/register', { cedula: '1000000003' });
+check('apellido compuesto bien separado', r5.ok && r5.status === 'new' && r5.nombre === 'Luisa Fernanda de la Cruz Martinez', r5);
+const r6 = await post<RegisterResponse>('/api/register/new', { cedula: '1000000004', nombre: 'Jorge Herrera', correo: 'jorge@ejemplo.com', consent: true });
+check('completa el correo y entra a la cola', r6.ok && r6.status === 'queued', r6);
 
 // 5. Ana juega y termina -> se guarda; Pedro es el siguiente al volver la pared a IDLE
 send({ t: 'session-start', localId: 'local-1' });
@@ -72,7 +76,7 @@ await wait(100);
 send({ t: 'session-end', summary: summary(180, true) });
 await wait(200);
 let admin = await get<AdminState>('/api/admin/state');
-check('sesión guardada y en cola de Evius', admin.recent[0]?.nombre.startsWith('Ana') && admin.recent[0].score === 180, admin.recent);
+check('sesión guardada y en cola de Evius', admin.recent[0]?.nombre.startsWith('Carlos') && admin.recent[0].score === 180, admin.recent);
 check('Evius mock la marcó como enviada', admin.recent[0]?.evius === 'sent', admin.recent[0]);
 check('la pared sigue ocupada hasta volver a IDLE', admin.wall === 'finishing', admin.wall);
 inbox.length = 0;
@@ -89,7 +93,7 @@ send({ t: 'wall-idle' });
 await wait(200);
 admin = await get<AdminState>('/api/admin/state');
 check('el abandono también se registra', admin.recent[0]?.nombre === 'Pedro Nuevo' && !admin.recent[0].completed, admin.recent[0]);
-check('la cola quedó vacía y la pared libre', admin.waiting.length === 0 && admin.active === null && admin.wall === 'idle', admin);
+check('la fila avanza: Jorge tiene el turno y no queda nadie esperando', admin.waiting.length === 0 && admin.active?.nombre === 'Jorge Herrera' && admin.wall === 'assigned', admin);
 
 // 7. Operador
 const noPin = await fetch(base + '/api/admin/state');

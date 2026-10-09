@@ -13,6 +13,8 @@ export const T = {
 
   datos: {
     title: 'REGÍSTRATE',
+    // Cuando la base ya trae el nombre pero no el correo.
+    confirmTitle: 'CONFIRMA TUS DATOS',
     cedula: 'Cédula',
     nombre: 'Nombre completo',
     correo: 'Correo electrónico',

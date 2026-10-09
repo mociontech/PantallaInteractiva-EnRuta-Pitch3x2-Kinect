@@ -114,6 +114,14 @@ app.post('/api/admin/retry-evius', (_req, res) => {
   retryOutboxNow();
   res.json({ ok: true });
 });
+app.post('/api/admin/attendees', express.text({ type: '*/*', limit: '10mb' }), (req, res) => {
+  try {
+    const text = typeof req.body === 'string' ? req.body : '';
+    res.json({ ok: true, ...attendees.upload(text) });
+  } catch (err) {
+    res.json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
 app.post('/api/admin/reload-attendees', async (_req, res) => res.json({ ok: true, ...(await attendees.reload()) }));
 app.get('/api/admin/export.csv', (_req, res) => {
   const rows = exportRows();

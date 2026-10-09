@@ -59,14 +59,24 @@ En desarrollo la pared funciona sola (sin registro); `?reg=1` activa el registro
 
 ## Base de asistentes (Sheet del cliente)
 
-Columnas esperadas (con cualquiera de estos nombres, sin importar tildes ni mayúsculas): **cédula** (`cedula`, `cc`, `documento`…),
-**nombre** (`nombre`, `nombres`, `nombre completo`… + opcional `apellido`) y **correo** (`correo`, `email`…).
-Las cédulas se comparan solo por dígitos (`1.234.567` = `1234567`).
+La forma más simple y robusta: **exportar el Sheet a CSV y cargarlo desde `/admin`** (funciona sin internet y sin permisos de Google).
 
-- **CSV:** exporta el Sheet a `server/data/asistentes.csv` (no se sube al repo: tiene datos personales).
-- **Sheet en vivo:** comparte el Sheet "con quien tenga el enlace" y pon en `ATTENDEES_CSV_URL` la URL
-  `https://docs.google.com/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`. Se vuelve a leer cada 5 minutos.
-- En `/admin` se ve cuántos asistentes hay cargados y se puede **recargar** al instante.
+1. En el Sheet, abre la pestaña con los datos → *Archivo → Descargar → Valores separados por comas (.csv)*.
+2. En `http://localhost:3001/admin` → tarjeta *Base de asistentes* → **Cargar CSV**. Se valida antes de guardar: si faltan columnas
+   se muestran los encabezados que se vieron y la base actual **no** se modifica. Se guarda en `server/data/asistentes.csv`
+   (no se sube al repo: tiene datos personales). Se puede volver a cargar las veces que haga falta (p. ej. si agregan gente).
+
+Columnas: solo hacen falta **identificación (cédula)** y **nombre**; el **correo es opcional**. Se reconocen por palabras clave sin importar
+tildes ni mayúsculas ("Identificación", "Nombre de Empleado", "Correo corporativo"…); el resto de columnas ("Cargo de Trabajo") se ignora.
+Las cédulas se comparan solo por dígitos (`72.345.678` = `72345678`).
+
+- **Sin correo en la base** (el caso actual): la tablet muestra "Confirma tus datos" con el nombre ya puesto (editable) y pide solo el **correo**
+  y la autorización. Queda guardado, así que la próxima vez esa cédula entra directo.
+- **Formato del nombre:** viene en MAYÚSCULAS y como "APELLIDOS NOMBRES" (`NAME_ORDER=apellidos-nombres`, por defecto). Se convierte a
+  "Nombres Apellidos" en formato Título (`PEREZ GOMEZ ANA MARIA` → `Ana Maria Perez Gomez`; reconoce `DE LA`, `DEL`…). La separación es una heurística
+  y la persona corrige su nombre en la tablet. Si la base viene "NOMBRES APELLIDOS", usa `NAME_ORDER=nombres-apellidos`.
+- **Personas que no están en la base** pueden registrarse en la tablet ("Regístrate") con cédula, nombre y correo.
+- Opcional: `ATTENDEES_CSV_URL` lee un Sheet publicado por enlace (se relee cada 5 min); no se recomienda con datos de colaboradores.
 - Sin archivo ni URL se usa `server/data/asistentes.sample.csv` (datos de ejemplo).
 
 ## Evius
@@ -81,7 +91,7 @@ URL, autenticación y campos se ajustan en `server/src/evius.ts` y en las variab
 ## Operador (`/admin`)
 
 Estado de la pared y de quién tiene el turno, fila de espera, últimas sesiones con su estado de envío a Evius, y acciones:
-saltar el turno actual, vaciar la fila, recargar la base, reintentar envíos y **descargar CSV** de todas las sesiones (respaldo).
+saltar el turno actual, vaciar la fila, **cargar el CSV de asistentes**, recargar la base, reintentar envíos y **descargar CSV** de todas las sesiones (respaldo).
 
 ## Datos personales
 
@@ -99,6 +109,7 @@ detalles y valores ajustables en `MEDIAPIPE` (`src/config/experience.ts`). Con `
 
 ```bash
 npm run typecheck                                  # web y servidor
+npx tsx server/names.test.ts                       # formato de nombres (apellidos/nombres, partículas)
 # Servidor de prueba (base aparte, Evius simulado):
 PORT=3055 DB_PATH=server/data/smoke.db EVIUS_MODE=mock npm run server
 SMOKE_URL=http://localhost:3055 npm run server:smoke     # API + cola + WebSocket (17 comprobaciones)

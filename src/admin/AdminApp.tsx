@@ -70,6 +70,15 @@ export function AdminApp() {
     void refresh();
   };
 
+  const upload = async (file: File | undefined): Promise<void> => {
+    if (!file) return;
+    const res = await fetch(`${BASE}/api/admin/attendees`, { method: 'POST', headers: { 'x-admin-pin': pin, 'Content-Type': 'text/plain' }, body: await file.text() });
+    const r = (await res.json()) as { ok: boolean; total?: number; skipped?: number; error?: string };
+    setNotice(r.ok ? `Base cargada: ${r.total} personas${r.skipped ? ` (${r.skipped} filas omitidas)` : ''}` : `No se cargó: ${r.error ?? 'error'}`);
+    window.setTimeout(() => setNotice(null), 8000);
+    void refresh();
+  };
+
   const download = async (): Promise<void> => {
     const res = await call('/api/admin/export.csv');
     const url = URL.createObjectURL(await res.blob());
@@ -145,6 +154,10 @@ export function AdminApp() {
             <p className={s.muted}>{state.attendees.source}{state.attendees.loadedAt ? ` · ${new Date(state.attendees.loadedAt).toLocaleTimeString()}` : ''}</p>
             {state.attendees.error && <p className={s.bad}>{state.attendees.error}</p>}
             <div className={s.row}>
+              <label className={s.fileBtn}>
+                Cargar CSV
+                <input type="file" accept=".csv,text/csv" hidden onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} />
+              </label>
               <button onClick={() => void act('/api/admin/reload-attendees', 'Base recargada')}>Recargar base</button>
             </div>
           </section>

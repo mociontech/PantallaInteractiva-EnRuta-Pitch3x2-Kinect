@@ -236,6 +236,7 @@ export function TabletApp() {
 
         {screen.name === 'datos' && (
           <DatosForm
+            confirm={screen.prefillNombre !== ''}
             needsCedula={cedula.length < 5}
             cedula={cedula}
             nombre={nombre}
@@ -275,6 +276,8 @@ export function TabletApp() {
 }
 
 interface DatosProps {
+  /** La base ya conocía a la persona (nombre prefijado): solo falta el correo. */
+  confirm: boolean;
   needsCedula: boolean;
   cedula: string;
   nombre: string;
@@ -306,7 +309,12 @@ function DatosForm(p: DatosProps) {
     <>
       <button type="button" className={`${s.link} ${s.linkBack}`} onClick={p.onBack}>‹ {T.datos.back}</button>
       <Logo x={680} y={60} width={560} />
-      <div className={s.title} style={{ top: 205, height: 90, fontSize: 80, lineHeight: '90px' }}>{T.datos.title}</div>
+      <div
+        className={s.title}
+        style={{ top: 205, height: 90, fontSize: p.confirm ? 72 : 80, lineHeight: '90px', left: 360, width: 1200, whiteSpace: 'nowrap' }}
+      >
+        {p.confirm ? T.datos.confirmTitle : T.datos.title}
+      </div>
 
       {p.needsCedula && (
         <Field y={yCedula} icon={userIcon} bad={p.touched && p.cedula.length < 5}>

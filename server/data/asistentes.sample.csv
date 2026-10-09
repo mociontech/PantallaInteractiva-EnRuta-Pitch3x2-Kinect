@@ -1,5 +1,5 @@
-cedula,nombre,apellido,correo,empresa
-1000000001,Ana María,Pérez Gómez,ana.perez@ejemplo.com,Panadería La Esquina
-1000000002,Carlos,Rodríguez,carlos.rodriguez@ejemplo.com,Ferretería El Muelle
-1000000003,Luisa Fernanda,Martínez,luisa.martinez@ejemplo.com,Textiles del Caribe
-1.000.000.004,Jorge,Herrera,,Sin correo en la base
+Identificación,Nombre de Empleado,Cargo de Trabajo,Correo
+1000000001,PEREZ GOMEZ ANA MARIA,AUXILIAR ADMINISTRATIVO,
+1000000002,RODRIGUEZ CARLOS,ANALISTA,carlos.rodriguez@ejemplo.com
+1000000003,DE LA CRUZ MARTINEZ LUISA FERNANDA,COORDINADORA,
+1.000.000.004,HERRERA JORGE,ASESOR,

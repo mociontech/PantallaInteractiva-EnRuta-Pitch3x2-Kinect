@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { config } from './config';
 import { parseCsv } from './csv';
 
@@ -15,6 +16,42 @@ export function normalizeCedula(raw: string): string {
 
 export function isValidCedula(cedula: string): boolean {
   return cedula.length >= 5 && cedula.length <= 12;
+}
+
+/** Partículas que forman parte de un apellido compuesto: "DE LA CRUZ", "DEL RIO", "DE LOS SANTOS"... */
+const PARTICLES = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'san', 'santa', 'da', 'di', 'van', 'von']);
+
+/**
+ * Deja el nombre legible: "PEREZ GOMEZ ANA MARIA" -> "Ana Maria Perez Gomez" (nombres primero).
+ * Para separar apellidos de nombres se agrupan las partículas con la palabra siguiente ("DE LA CRUZ" es una unidad)
+ * y se toman como nombres las últimas 1 (hasta 3 unidades) o 2 unidades (4 o más). Es una heurística: la persona puede
+ * corregir su nombre en la tablet antes de entrar a la fila.
+ */
+export function formatName(raw: string, order: 'apellidos-nombres' | 'nombres-apellidos' | 'tal-cual'): string {
+  const tokens = raw.replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean);
+  if (tokens.length === 0) return '';
+  let units = tokens;
+  if (order !== 'tal-cual') {
+    units = [];
+    let pending: string[] = [];
+    for (const t of tokens) {
+      pending.push(t);
+      if (!PARTICLES.has(t)) {
+        units.push(pending.join(' '));
+        pending = [];
+      }
+    }
+    if (pending.length) units.push(pending.join(' '));
+    if (units.length > 1) {
+      const names = units.length <= 3 ? 1 : 2;
+      if (order === 'apellidos-nombres') units = [...units.slice(-names), ...units.slice(0, -names)];
+    }
+  }
+  return units
+    .join(' ')
+    .split(' ')
+    .map((w, i) => (i > 0 && PARTICLES.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
 }
 
 function norm(s: string): string {
@@ -82,6 +119,19 @@ class AttendeeSource {
     }
   }
 
+  /**
+   * Reemplaza la base con un CSV subido desde /admin. Se valida antes de guardar: si faltan columnas
+   * se lanza el error (con los encabezados vistos) y NO se toca la base actual.
+   */
+  upload(text: string): LoadResult {
+    const result = this.ingest(text, 'archivo cargado desde /admin');
+    mkdirSync(path.dirname(config.attendees.csvPath), { recursive: true });
+    writeFileSync(config.attendees.csvPath, text, 'utf8');
+    this.info = { ...result, loadedAt: new Date().toISOString(), error: null };
+    console.log(`[asistentes] ${result.total} cargados desde /admin (${result.skipped} filas omitidas)`);
+    return result;
+  }
+
   private async read(): Promise<{ text: string; source: string }> {
     const { csvUrl, csvPath } = config.attendees;
     if (csvUrl) {
@@ -107,17 +157,18 @@ class AttendeeSource {
     const iCorreo = pick('correo');
     const iApellido = pick('apellido');
     const iNombre = pick('nombre');
-    if (iCedula < 0 || iNombre < 0 || iCorreo < 0) {
-      throw new Error(
-        `faltan columnas (cédula/nombre/correo). Encabezados vistos: ${header.join(' | ')}`,
-      );
+    // El correo es opcional: si la base no lo trae, la tablet se lo pide a cada persona al registrarse.
+    if (iCedula < 0 || iNombre < 0) {
+      throw new Error(`faltan columnas (cédula/nombre). Encabezados vistos: ${header.join(' | ')}`);
     }
     const next = new Map<string, Attendee>();
     let skipped = 0;
     for (const r of rows.slice(1)) {
       const cedula = normalizeCedula(r[iCedula] ?? '');
-      const nombre = [r[iNombre], iApellido >= 0 ? r[iApellido] : ''].map((x) => (x ?? '').trim()).filter(Boolean).join(' ');
-      const correo = (r[iCorreo] ?? '').trim().toLowerCase();
+      const raw = [r[iNombre], iApellido >= 0 ? r[iApellido] : ''].map((x) => (x ?? '').trim()).filter(Boolean).join(' ');
+      // Con columna de apellido aparte ya viene "nombre + apellido": solo se pone en formato Título.
+      const nombre = formatName(raw, iApellido >= 0 ? 'tal-cual' : config.attendees.nameOrder);
+      const correo = iCorreo >= 0 ? (r[iCorreo] ?? '').trim().toLowerCase() : '';
       if (!isValidCedula(cedula) || !nombre) {
         skipped++;
         continue;

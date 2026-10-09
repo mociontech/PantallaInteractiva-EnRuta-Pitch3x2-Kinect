@@ -37,6 +37,14 @@ export const config = {
     csvUrl: env.ATTENDEES_CSV_URL ?? '',
     /** Cada cuánto se vuelve a leer la fuente (ms). */
     refreshMs: num(env.ATTENDEES_REFRESH_MS, 300_000),
+    /**
+     * Cómo viene escrito el nombre en la base: 'apellidos-nombres' ("PEREZ GOMEZ ANA MARIA", lo habitual en nómina),
+     * 'nombres-apellidos' o 'tal-cual' (solo se pone en formato Título). [CONFIRMAR] con el Sheet real.
+     */
+    nameOrder: ((): 'apellidos-nombres' | 'nombres-apellidos' | 'tal-cual' => {
+      if (env.NAME_ORDER === 'nombres-apellidos' || env.NAME_ORDER === 'tal-cual') return env.NAME_ORDER;
+      return 'apellidos-nombres';
+    })(),
   },
 
   evius: {
