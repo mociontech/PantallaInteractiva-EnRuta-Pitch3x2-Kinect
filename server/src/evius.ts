@@ -6,8 +6,8 @@ import { config } from './config';
  *
  * La API real (Datahub) recibe LOTES: { eventId, source, sentAt, records: [...] } y responde 200 aunque algunos registros fallen,
  * con { received, processed, failed, errors }. Por eso el éxito se decide por el cuerpo (failed === 0), no por el código HTTP.
- * [CONFIRMAR] Los nombres de los campos DENTRO de cada record (cedula, name, cargo, score…): solo se conoce `play_timestamp`
- * (experiences) y `name` (activities). Se ajustan SOLO en este archivo.
+ * [CONFIRMAR] Campos de cada record, confirmados contra dev: `email` (identifica al asistente) y `fullName` (attendees); `email`,
+ * `play_timestamp` y `score` (experiences, enlaza por email); `name` (activities). Se ajustan SOLO en este archivo.
  */
 
 export interface EviusAttendee {
@@ -63,6 +63,9 @@ async function postBatch(route: string, extra: Record<string, unknown>, records:
   }
 }
 
+/** Evius identifica al asistente por correo. La base no trae correos: se deriva uno estable de la cédula (único por persona). */
+const emailOf = (a: EviusAttendee): string => `${a.cedula}@${config.evius.emailDomain}`;
+
 /** Registra a la persona en el evento (Evius deduplica por cédula + eventId). */
 export async function deliverAttendeeToEvius(a: EviusAttendee): Promise<void> {
   const { mode, eventId } = config.evius;
@@ -70,7 +73,7 @@ export async function deliverAttendeeToEvius(a: EviusAttendee): Promise<void> {
     console.log('[evius:mock] attendee', JSON.stringify(a));
     return;
   }
-  await postBatch('/attendees', {}, [{ cedula: a.cedula, name: a.nombre, cargo: a.cargo }], `att:${eventId}:${a.cedula}`);
+  await postBatch('/attendees', {}, [{ email: emailOf(a), fullName: a.nombre, cedula: a.cedula, cargo: a.cargo }], `att:${eventId}:${a.cedula}`);
 }
 
 /** Guarda el puntaje. Si /experiences no existe en el evento (404/405/501) cae a /activities con el puntaje en `longDescription`. */
@@ -97,7 +100,7 @@ export async function deliverExperienceToEvius(a: EviusAttendee, result: EviusRe
     await postBatch(
       '/experiences',
       { experienceId },
-      [{ cedula: a.cedula, name: a.nombre, cargo: a.cargo, play_timestamp: result.endedAt, ...details, idempotencyKey }],
+      [{ email: emailOf(a), fullName: a.nombre, cedula: a.cedula, cargo: a.cargo, play_timestamp: result.endedAt, ...details, idempotencyKey }],
       idempotencyKey,
     );
   } catch (err) {

@@ -87,12 +87,15 @@ Cada sesión (completa o abandonada) se manda a Evius con **la cédula como iden
 Evius (Datahub) recibe **lotes**: `{ eventId, source, sentAt, records: [...] }` con `Authorization: Bearer EVIUS_TOKEN`, y responde `200` aunque falle algún
 registro (`{ received, processed, failed, errors }`). Por eso el envío solo se da por bueno si `failed === 0`; si no, queda pendiente con el mensaje de error en `/admin`.
 
-1. `POST /attendees` registra a la persona (`cedula`, `name`, `cargo`; nombre y cargo salen del CSV).
-2. `POST /experiences` guarda el puntaje (`experienceId` en el lote y `play_timestamp` ISO 8601 por registro, más puntaje, áreas, duración…).
-   Si el endpoint no existe (404/405/501) cae a `POST /activities` (`name` obligatorio, puntaje como JSON en `longDescription`).
+**Evius identifica al asistente por correo** (`email`), y la base no trae correos: se deriva uno estable de la cédula (`<cédula>@enruta.local`; dominio en `EVIUS_EMAIL_DOMAIN`).
+La cédula y el cargo viajan además como campos extra.
 
-**[CONFIRMAR]** con Evius los nombres de campo de cada record (solo se conocen `play_timestamp` y `name`): se ajustan solo en `server/src/evius.ts`.
-Mientras tanto `EVIUS_MODE=off` en `.env` acumula todo en el outbox sin enviar; al quitarlo, se entrega lo acumulado.
+1. `POST /attendees` registra a la persona: `email`, `fullName` (nombre del CSV), `cedula`, `cargo`.
+2. `POST /experiences` guarda el puntaje enlazado por `email`: `experienceId` en el lote y, por registro, `play_timestamp` ISO 8601 y `score` (más áreas, duración…).
+   Si el endpoint no existe (404/405/501) cae a `POST /activities` (`name` obligatorio).
+
+Verificado contra el entorno de desarrollo: `GET /api/datahub/events/{eventId}/attendee-gamification` lista nombre, correo y puntos acumulados.
+Swagger de la API: `<host>/evius/docs`. Pendiente: `EVIUS_MODE=off` en `.env` hasta que se decida activar el envío.
 
 **Outbox con reintento infinito** (`server/src/outbox.ts`): el resultado se escribe en `server/data/outbox.jsonl` (append-only, con fsync) **antes** de
 intentar enviar. Si no hay internet o el servidor se cae, no se pierde nada: al volver se reanuda solo. Reintentos con backoff exponencial

@@ -69,6 +69,7 @@ export const config = {
     experienceId: env.EVIUS_EXPERIENCE_ID ?? '',
     /** Nombre de esta experiencia tal como debe verse en Evius. */
     experienceName: env.EXPERIENCE_NAME ?? 'Pared interactiva EnRuta',
+    emailDomain: env.EVIUS_EMAIL_DOMAIN ?? 'enruta.local',
     /** Archivo JSONL del outbox: se escribe ANTES de intentar el envío y es también el historial/respaldo de lo jugado. */
     outboxPath: env.OUTBOX_PATH ?? 'server/data/outbox.jsonl',
   },
