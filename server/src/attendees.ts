@@ -23,19 +23,28 @@ function norm(s: string): string {
 
 /** [CONFIRMAR] Nombres de columna posibles en el Sheet del cliente (sin tildes, en minúsculas). */
 const ALIASES = {
-  cedula: ['cedula', 'cc', 'documento', 'identificacion', 'numero de documento', 'numero documento', 'no. documento', 'id'],
-  nombre: ['nombre', 'nombres', 'nombre completo', 'nombre y apellido', 'nombres y apellidos', 'asistente', 'name'],
+  cedula: ['cedula', 'cc', 'documento', 'identificacion', 'numero de documento', 'numero de identificacion', 'numero documento', 'no. documento', 'nro documento', 'id'],
+  nombre: ['nombre', 'nombres', 'nombre completo', 'nombre y apellido', 'nombres y apellidos', 'nombre del colaborador', 'colaborador', 'asistente', 'name'],
   apellido: ['apellido', 'apellidos'],
-  correo: ['correo', 'correo electronico', 'email', 'e-mail', 'mail'],
+  correo: ['correo', 'correo electronico', 'correo corporativo', 'email', 'e-mail', 'mail'],
 } as const;
 
-function findColumn(header: string[], aliases: readonly string[]): number {
+/** Palabras clave para reconocer una columna cuando su nombre no es exactamente uno de los alias. */
+const STEMS = {
+  cedula: ['cedula', 'documento', 'identificacion'],
+  nombre: ['nombre', 'colaborador', 'empleado'],
+  apellido: ['apellido'],
+  correo: ['correo', 'email', 'mail'],
+} as const;
+
+/** Primero el nombre exacto (alias); si no, la primera columna libre que contenga la palabra clave. */
+function findColumn(header: string[], aliases: readonly string[], stems: readonly string[], taken: number[]): number {
   const h = header.map(norm);
   for (const a of aliases) {
     const i = h.indexOf(a);
-    if (i >= 0) return i;
+    if (i >= 0 && !taken.includes(i)) return i;
   }
-  return -1;
+  return h.findIndex((name, i) => !taken.includes(i) && stems.some((s) => name.includes(s)));
 }
 
 export interface LoadResult {
@@ -88,10 +97,16 @@ class AttendeeSource {
   private ingest(text: string, source: string): LoadResult {
     const rows = parseCsv(text);
     const header = rows[0] ?? [];
-    const iCedula = findColumn(header, ALIASES.cedula);
-    const iNombre = findColumn(header, ALIASES.nombre);
-    const iApellido = findColumn(header, ALIASES.apellido);
-    const iCorreo = findColumn(header, ALIASES.correo);
+    const taken: number[] = [];
+    const pick = (key: keyof typeof ALIASES): number => {
+      const i = findColumn(header, ALIASES[key], STEMS[key], taken);
+      if (i >= 0) taken.push(i);
+      return i;
+    };
+    const iCedula = pick('cedula');
+    const iCorreo = pick('correo');
+    const iApellido = pick('apellido');
+    const iNombre = pick('nombre');
     if (iCedula < 0 || iNombre < 0 || iCorreo < 0) {
       throw new Error(
         `faltan columnas (cédula/nombre/correo). Encabezados vistos: ${header.join(' | ')}`,
