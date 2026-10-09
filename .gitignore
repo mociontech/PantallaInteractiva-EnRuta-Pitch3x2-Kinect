@@ -7,3 +7,4 @@ server/data/*.db-*
 server/data/asistentes.csv
 server/data/*.csv
 !server/data/asistentes.sample.csv
+server/data/*.log
