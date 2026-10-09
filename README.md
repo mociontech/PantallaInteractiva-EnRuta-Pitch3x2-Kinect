@@ -84,13 +84,15 @@ Las cédulas se comparan solo por dígitos (`72.345.678` = `72345678`).
 
 Cada sesión (completa o abandonada) se manda a Evius con **la cédula como identificador único** (no hay correo). Dos llamadas, en este orden:
 
-1. `POST /attendees` registra a la persona: `eventId`, `cedula`, `name`, `cargo` (nombre y cargo salen del CSV; nadie los escribe a mano).
-   Evius deduplica por cédula + `eventId`; un `409` se toma como "ya estaba registrada" = éxito.
-2. `POST /experiences` guarda el puntaje (más áreas elegidas, soluciones vistas, duración…). Si ese endpoint no existe en el evento (404/405/501),
-   cae a `POST /activities` con el puntaje como JSON en `longDescription`.
+Evius (Datahub) recibe **lotes**: `{ eventId, source, sentAt, records: [...] }` con `Authorization: Bearer EVIUS_TOKEN`, y responde `200` aunque falle algún
+registro (`{ received, processed, failed, errors }`). Por eso el envío solo se da por bueno si `failed === 0`; si no, queda pendiente con el mensaje de error en `/admin`.
 
-Autenticación: `Authorization: Bearer EVIUS_TOKEN` y `Idempotency-Key` en cada petición. **[CONFIRMAR]** nombres de campos y rutas con la API real:
-se ajustan solo en `server/src/evius.ts`.
+1. `POST /attendees` registra a la persona (`cedula`, `name`, `cargo`; nombre y cargo salen del CSV).
+2. `POST /experiences` guarda el puntaje (`experienceId` en el lote y `play_timestamp` ISO 8601 por registro, más puntaje, áreas, duración…).
+   Si el endpoint no existe (404/405/501) cae a `POST /activities` (`name` obligatorio, puntaje como JSON en `longDescription`).
+
+**[CONFIRMAR]** con Evius los nombres de campo de cada record (solo se conocen `play_timestamp` y `name`): se ajustan solo en `server/src/evius.ts`.
+Mientras tanto `EVIUS_MODE=off` en `.env` acumula todo en el outbox sin enviar; al quitarlo, se entrega lo acumulado.
 
 **Outbox con reintento infinito** (`server/src/outbox.ts`): el resultado se escribe en `server/data/outbox.jsonl` (append-only, con fsync) **antes** de
 intentar enviar. Si no hay internet o el servidor se cae, no se pierde nada: al volver se reanuda solo. Reintentos con backoff exponencial
