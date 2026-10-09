@@ -118,7 +118,11 @@ export function TabletApp() {
     try {
       const r = await api.register(cedula);
       if (!r.ok) {
-        setMessage(r.error === 'already_played' ? T.errors.alreadyPlayed : r.error === 'invalid_cedula' ? T.cedula.invalid : T.errors.server);
+        setMessage(
+          r.error === 'already_played' ? T.errors.alreadyPlayed
+            : r.error === 'invalid_cedula' ? T.cedula.invalid
+              : r.error === 'not_found' ? T.errors.notFound : T.errors.server,
+        );
       } else if (r.status === 'queued') {
         setScreen({ name: 'listo', queueId: r.queueId, nombre: r.nombre, position: r.position });
       } else {

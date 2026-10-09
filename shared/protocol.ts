@@ -46,6 +46,8 @@ export type RegisterError =
   | 'invalid_email'
   | 'consent_required'
   | 'already_played'
+  /** La cédula no está en el CSV de asistentes y ALLOW_UNLISTED=false. */
+  | 'not_found'
   | 'server_error';
 
 export type RegisterResponse =

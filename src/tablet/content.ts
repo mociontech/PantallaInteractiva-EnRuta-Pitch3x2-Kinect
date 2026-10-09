@@ -35,6 +35,7 @@ export const T = {
 
   errors: {
     alreadyPlayed: 'Esta cédula ya participó.',
+    notFound: 'Tu cédula no está en la lista de asistentes.',
     server: 'Algo salió mal. Intenta de nuevo.',
     offline: 'No hay conexión con el servidor. Avisa al equipo.',
   },

@@ -12,7 +12,9 @@
     "start": "npm run build && npm run server",
     "typecheck": "tsc --noEmit && tsc --noEmit -p server/tsconfig.json",
     "server:smoke": "tsx server/smoke.ts",
-    "e2e": "node server/e2e.mjs"
+    "e2e": "node server/e2e.mjs",
+    "mock:evius": "node server/mock-evius.mjs",
+    "play": "node server/play.mjs"
   },
   "dependencies": {
     "@fontsource/montserrat": "^5.3.0",

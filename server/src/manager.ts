@@ -5,7 +5,7 @@ import type {
 import { attendees } from './attendees';
 import { config } from './config';
 import { all, now, one, run, type Participant, type QueueRow, type SessionRow } from './db';
-import { enqueueForEvius, pendingCount, type EviusPayload } from './evius';
+import { deliveryOfSession, enqueueSession, outbox } from './delivery';
 
 /**
  * Gestor de turnos: una sola pared, cola de personas registradas en la tablet.
@@ -144,24 +144,23 @@ function onSessionEnd(summary: SessionSummary): void {
     summary.completed ? 1 : 0, summary.lastStep, summary.score, summary.gameScore,
     JSON.stringify(summary.areas), JSON.stringify(summary.solutionsViewed), summary.durationMs, config.deviceId,
   );
-  const payload: EviusPayload = {
-    experience: config.evius.experience,
-    deviceId: config.deviceId,
-    cedula: p.cedula,
-    nombre: p.nombre,
-    correo: p.correo,
-    score: summary.score,
-    completed: summary.completed,
-    lastStep: summary.lastStep,
-    gameScore: summary.gameScore,
-    areas: summary.areas,
-    solutionsViewed: summary.solutionsViewed,
-    durationMs: summary.durationMs,
-    startedAt: summary.startedAt ? new Date(summary.startedAt).toISOString() : null,
-    endedAt,
-    sessionId,
-  };
-  enqueueForEvius(sessionId, payload);
+  // Primero se persiste en el outbox (disco) y recién entonces se intenta enviar a Evius.
+  enqueueSession(
+    { cedula: p.cedula, nombre: p.nombre, cargo: p.cargo },
+    {
+      sessionId,
+      score: summary.score,
+      completed: summary.completed,
+      lastStep: summary.lastStep,
+      gameScore: summary.gameScore,
+      areas: summary.areas,
+      solutionsViewed: summary.solutionsViewed,
+      durationMs: summary.durationMs,
+      startedAt: summary.startedAt ? new Date(summary.startedAt).toISOString() : null,
+      endedAt,
+      deviceId: config.deviceId,
+    },
+  );
   console.log(`[sesión] ${p.nombre} · ${summary.score} pts · ${summary.completed ? 'completa' : 'abandonó'}`);
 }
 
@@ -228,36 +227,36 @@ export function adminState(): AdminState {
     `SELECT q.id AS queueId, p.nombre AS nombre, p.cedula AS cedula, q.created_at AS since
        FROM queue q JOIN participants p ON p.id = q.participant_id WHERE q.status = 'waiting' ORDER BY q.id`,
   );
-  const recent = all<{
-    sessionId: number; nombre: string; cedula: string; score: number; completed: number; endedAt: string;
-    evius: 'pending' | 'sent'; attempts: number; lastError: string | null;
-  }>(
+  const recent = all<{ sessionId: number; nombre: string; cedula: string; score: number; completed: number; endedAt: string }>(
     `SELECT s.id AS sessionId, p.nombre AS nombre, p.cedula AS cedula, s.score AS score, s.completed AS completed,
-            s.ended_at AS endedAt, o.status AS evius, o.attempts AS attempts, o.last_error AS lastError
-       FROM sessions s JOIN participants p ON p.id = s.participant_id LEFT JOIN outbox o ON o.session_id = s.id
+            s.ended_at AS endedAt
+       FROM sessions s JOIN participants p ON p.id = s.participant_id
       ORDER BY s.id DESC LIMIT 25`,
   );
   return {
     wall: wallStatus,
     active: active && activeQueueId !== null ? { queueId: activeQueueId, nombre: active.nombre, cedula: active.cedula } : null,
     waiting,
-    recent: recent.map((r) => ({ ...r, completed: r.completed === 1, evius: r.evius ?? 'pending' })),
+    recent: recent.map((r) => {
+      const d = deliveryOfSession(r.sessionId);
+      return { ...r, completed: r.completed === 1, evius: d.status, attempts: d.attempts, lastError: d.lastError };
+    }),
     attendees: {
       total: attendees.info.total, source: attendees.info.source, loadedAt: attendees.info.loadedAt, error: attendees.info.error,
     },
-    evius: { mode: config.evius.mode, pending: pendingCount() },
+    evius: { mode: config.evius.mode, pending: outbox.stats().pending },
     replayPolicy: config.replayPolicy,
   };
 }
 
 /** Todas las sesiones, para exportar (respaldo en CSV). */
 export function exportRows(): Array<Record<string, string | number>> {
-  const rows = all<SessionRow & { cedula: string; nombre: string; correo: string; origen: string }>(
-    `SELECT s.*, p.cedula, p.nombre, p.correo, p.origen
+  const rows = all<SessionRow & { cedula: string; nombre: string; cargo: string; origen: string }>(
+    `SELECT s.*, p.cedula, p.nombre, p.cargo, p.origen
        FROM sessions s JOIN participants p ON p.id = s.participant_id ORDER BY s.id`,
   );
   return rows.map((r) => ({
-    sesion: r.id, cedula: r.cedula, nombre: r.nombre, correo: r.correo, origen: r.origen,
+    sesion: r.id, cedula: r.cedula, nombre: r.nombre, cargo: r.cargo, origen: r.origen,
     inicio: r.started_at ?? '', fin: r.ended_at, completo: r.completed ? 'si' : 'no',
     ultimo_paso: r.last_step, puntaje: r.score, puntos_juego: r.game_score,
     areas: r.areas, soluciones: r.solutions, duracion_ms: r.duration_ms, pared: r.device_id,

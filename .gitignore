@@ -8,3 +8,4 @@ server/data/asistentes.csv
 server/data/*.csv
 !server/data/asistentes.sample.csv
 server/data/*.log
+server/data/*.jsonl

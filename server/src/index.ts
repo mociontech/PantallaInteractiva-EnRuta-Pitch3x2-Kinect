@@ -8,7 +8,7 @@ import type { RegisterResponse, WallToServer } from '../../shared/protocol';
 import { attendees, isValidCedula, normalizeCedula } from './attendees';
 import { config } from './config';
 import { now, one, run, type Participant } from './db';
-import { processOutbox, retryOutboxNow, startOutboxLoop } from './evius';
+import { outbox } from './delivery';
 import {
   adminState, attachWall, clearQueue, detachWall, exportRows, onWallMessage, queueInfo, recoverOnBoot,
   register, skipCurrent,
@@ -16,6 +16,34 @@ import {
 
 const app = express();
 app.use(express.json({ limit: '50kb' }));
+
+/** Limite sencillo por IP (ventana de 1 min) para que nadie pueda recorrer cedulas de a miles en la red local. */
+function rateLimit(maxPerMinute: number) {
+  const hits = new Map<string, { n: number; since: number }>();
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const key = req.ip ?? 'x';
+    const t = Date.now();
+    const h = hits.get(key);
+    if (!h || t - h.since > 60_000) hits.set(key, { n: 1, since: t });
+    else if (++h.n > maxPerMinute) {
+      res.status(429).json({ ok: false, error: 'too_many_requests' });
+      return;
+    }
+    next();
+  };
+}
+const lookupLimit = rateLimit(60);
+
+// ------- validacion por cedula (CSV de asistentes) -------
+
+/** Devuelve { nombre, cargo } de la cedula, o 404 si no esta en el CSV. Los datos salen del CSV; nadie los escribe a mano. */
+app.get(['/attendee', '/api/attendee'], lookupLimit, (req, res) => {
+  const cedula = normalizeCedula(typeof req.query.cedula === 'string' ? req.query.cedula : '');
+  if (!isValidCedula(cedula)) return res.status(400).json({ error: 'invalid_cedula' });
+  const a = attendees.find(cedula);
+  if (!a) return res.status(404).json({ error: 'not_found' });
+  return res.json({ nombre: a.nombre, cargo: a.cargo });
+});
 
 // ───────── registro (tablet) ─────────
 
@@ -32,28 +60,35 @@ function toQueue(participant: Participant): RegisterResponse {
 }
 
 /** Paso 1: la tablet envía la cédula. Si la conocemos, entra a la cola; si no, pide más datos. */
-app.post('/api/register', (req, res) => {
+app.post('/api/register', lookupLimit, (req, res) => {
   const body = req.body as { cedula?: unknown };
   const cedula = normalizeCedula(typeof body.cedula === 'string' ? body.cedula : '');
   if (!isValidCedula(cedula)) return res.json({ ok: false, error: 'invalid_cedula' } satisfies RegisterResponse);
 
+  const a = attendees.find(cedula);
   let p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);
   if (!p) {
-    const a = attendees.find(cedula);
-    if (!a) return res.json({ ok: true, status: 'new' } satisfies RegisterResponse);
+    if (!a) {
+      if (!config.allowUnlisted) return res.json({ ok: false, error: 'not_found' } satisfies RegisterResponse);
+      return res.json({ ok: true, status: 'new' } satisfies RegisterResponse);
+    }
     // Está en la base del cliente: entra directo. El correo es opcional (la base puede no traerlo).
     const id = run(
-      'INSERT INTO participants (cedula, nombre, correo, origen, created_at) VALUES (?,?,?,?,?)',
-      a.cedula, a.nombre, EMAIL.test(a.correo) ? a.correo : '', 'base', now(),
+      'INSERT INTO participants (cedula, nombre, correo, cargo, origen, created_at) VALUES (?,?,?,?,?,?)',
+      a.cedula, a.nombre, EMAIL.test(a.correo) ? a.correo : '', a.cargo, 'base', now(),
     );
     p = one<Participant>('SELECT * FROM participants WHERE id = ?', id);
+  } else if (a && (p.nombre !== a.nombre || p.cargo !== a.cargo)) {
+    // Si el CSV cambio (cargo nuevo, nombre corregido) se toma la version mas reciente.
+    run('UPDATE participants SET nombre = ?, cargo = ?, origen = ? WHERE id = ?', a.nombre, a.cargo, 'base', p.id);
+    p = one<Participant>('SELECT * FROM participants WHERE id = ?', p.id);
   }
   if (!p) return res.json({ ok: false, error: 'server_error' } satisfies RegisterResponse);
   return res.json(toQueue(p));
 });
 
 /** Paso 2 (solo si la cédula no está en la base): nombre y autorización de datos. El correo es opcional. */
-app.post('/api/register/new', (req, res) => {
+app.post('/api/register/new', lookupLimit, (req, res) => {
   const body = req.body as { cedula?: unknown; nombre?: unknown; correo?: unknown; consent?: unknown };
   const cedula = normalizeCedula(typeof body.cedula === 'string' ? body.cedula : '');
   const nombre = cleanName(body.nombre);
@@ -62,6 +97,7 @@ app.post('/api/register/new', (req, res) => {
     res.json({ ok: false, error } satisfies RegisterResponse);
 
   if (!isValidCedula(cedula)) return fail('invalid_cedula');
+  if (!config.allowUnlisted && !attendees.find(cedula)) return fail('not_found');
   if (nombre.length < 3 || nombre.length > 120 || !/\p{L}/u.test(nombre)) return fail('invalid_name');
   if (correo !== '' && (!EMAIL.test(correo) || correo.length > 120)) return fail('invalid_email');
   if (body.consent !== true) return fail('consent_required');
@@ -70,10 +106,11 @@ app.post('/api/register/new', (req, res) => {
   if (p) {
     run('UPDATE participants SET nombre = ?, correo = ?, consent_at = ? WHERE id = ?', nombre, correo, now(), p.id);
   } else {
-    const origen = attendees.find(cedula) ? 'base' : 'nuevo';
+    // Quien no esta en el CSV no tiene cargo (queda vacio); quien si esta conserva el del CSV.
+    const listed = attendees.find(cedula);
     run(
-      'INSERT INTO participants (cedula, nombre, correo, origen, consent_at, created_at) VALUES (?,?,?,?,?,?)',
-      cedula, nombre, correo, origen, now(), now(),
+      'INSERT INTO participants (cedula, nombre, correo, cargo, origen, consent_at, created_at) VALUES (?,?,?,?,?,?,?)',
+      cedula, nombre, correo, listed?.cargo ?? '', listed ? 'base' : 'nuevo', now(), now(),
     );
   }
   p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);
@@ -106,7 +143,7 @@ app.get('/api/admin/state', (_req, res) => res.json(adminState()));
 app.post('/api/admin/skip', (_req, res) => res.json({ ok: skipCurrent() }));
 app.post('/api/admin/clear-queue', (_req, res) => res.json({ ok: true, cleared: clearQueue() }));
 app.post('/api/admin/retry-evius', (_req, res) => {
-  retryOutboxNow();
+  outbox.retryNow();
   res.json({ ok: true });
 });
 app.post('/api/admin/attendees', express.text({ type: '*/*', limit: '10mb' }), (req, res) => {
@@ -182,8 +219,7 @@ wss.on('connection', (ws) => {
 recoverOnBoot();
 await attendees.reload();
 attendees.startAutoRefresh();
-startOutboxLoop();
-void processOutbox();
+outbox.start();
 
 server.listen(config.port, config.host, () => {
   console.log(`\nEnRuta · servidor local en el puerto ${config.port}`);
@@ -194,5 +230,6 @@ server.listen(config.port, config.host, () => {
     .map((i) => i?.address);
   for (const ip of lan) console.log(`  Tablet:   http://${ip}:${config.port}/registro`);
   console.log(`  Operador: http://localhost:${config.port}/admin  (PIN en ADMIN_PIN)`);
-  console.log(`  Evius: ${config.evius.mode} · Asistentes: ${attendees.info.total} (${attendees.info.source})\n`);
+  console.log(`  Evius: ${config.evius.mode}${config.evius.mode === 'off' ? ' (sin EVIUS_URL: los puntajes se acumulan en el outbox)' : ''} | Asistentes: ${attendees.info.total} (${attendees.info.source})
+`);
 });

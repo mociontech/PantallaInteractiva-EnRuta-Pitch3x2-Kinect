@@ -82,12 +82,35 @@ Las cédulas se comparan solo por dígitos (`72.345.678` = `72345678`).
 
 ## Evius
 
-Los puntajes se guardan en una cola (`outbox`) y se envían en segundo plano con reintentos. **[CONFIRMAR]** el formato real con la API de Evius:
-URL, autenticación y campos se ajustan en `server/src/evius.ts` y en las variables `EVIUS_*`.
+Cada sesión (completa o abandonada) se manda a Evius con **la cédula como identificador único** (no hay correo). Dos llamadas, en este orden:
 
-- `EVIUS_MODE=mock`: registra en consola y los marca como enviados (para probar).
-- Sin `EVIUS_URL`: los envíos quedan **pendientes** (se ven en `/admin`) hasta que se configure.
-- Dato enviado por sesión: cédula, nombre, puntaje total, si completó, último paso, puntos del juego, áreas elegidas, soluciones vistas, duración, pared y hora.
+1. `POST /attendees` registra a la persona: `eventId`, `cedula`, `name`, `cargo` (nombre y cargo salen del CSV; nadie los escribe a mano).
+   Evius deduplica por cédula + `eventId`; un `409` se toma como "ya estaba registrada" = éxito.
+2. `POST /experiences` guarda el puntaje (más áreas elegidas, soluciones vistas, duración…). Si ese endpoint no existe en el evento (404/405/501),
+   cae a `POST /activities` con el puntaje como JSON en `longDescription`.
+
+Autenticación: `Authorization: Bearer EVIUS_TOKEN` y `Idempotency-Key` en cada petición. **[CONFIRMAR]** nombres de campos y rutas con la API real:
+se ajustan solo en `server/src/evius.ts`.
+
+**Outbox con reintento infinito** (`server/src/outbox.ts`): el resultado se escribe en `server/data/outbox.jsonl` (append-only, con fsync) **antes** de
+intentar enviar. Si no hay internet o el servidor se cae, no se pierde nada: al volver se reanuda solo. Reintentos con backoff exponencial
+(2 s, 4 s, 8 s… tope 5 min), un poll cada 3 s, nunca se rinde. Cada registro tiene `idempotencyKey`, así un reintento no duplica. El archivo no se compacta
+ni se borra: es también el respaldo/historial (cédula, nombre, cargo, puntaje y hora de cada sesión). No hay base de rankings propia: el puntaje va solo a Evius.
+
+- Sin `EVIUS_URL` el servidor funciona igual y acumula todo en el outbox (se ve en `/admin`); en cuanto se configure, se envía lo acumulado.
+- **Validación por cédula:** `GET /attendee?cedula=...` devuelve `{ "nombre", "cargo" }` o `404` si no está en el CSV.
+- Variables: `EVIUS_URL`, `EVIUS_TOKEN`, `EVIUS_EVENT_ID`, `EVIUS_EXPERIENCE_ID`, `EXPERIENCE_NAME`, `ATTENDEES_CSV_PATH`, `OUTBOX_PATH` (ver `.env.example`).
+
+### Probar el envío sin Evius real
+
+```bash
+npm run mock:evius                               # Evius falso en :4010 (MOCK_TOKEN opcional)
+EVIUS_URL=http://localhost:4010 EVIUS_TOKEN=tok EVIUS_EVENT_ID=ev-1 EVIUS_EXPERIENCE_ID=exp-1 npm run server
+npm run play -- 1000000002 180                   # juega una sesión: cédula y puntaje
+curl localhost:4010/__log                        # lo que recibió Evius
+curl -X POST localhost:4010/__config -d '{"fail":true}'            # simula Evius caído
+curl -X POST localhost:4010/__config -d '{"noExperiences":true}'   # obliga al fallback a /activities
+```
 
 ## Operador (`/admin`)
 
@@ -96,7 +119,7 @@ saltar el turno actual, vaciar la fila, **cargar el CSV de asistentes**, recarga
 
 ## Datos personales
 
-Se guardan cédula y nombre (para unir los puntajes en Evius) **solo en el servidor local** (`server/data/enruta.db`) y en Evius.
+Se guardan cédula, nombre y cargo (para unir los puntajes en Evius) **solo en el servidor local** (`server/data/enruta.db` y `server/data/outbox.jsonl`) y en Evius.
 La tablet muestra la autorización de tratamiento de datos antes de registrar a alguien nuevo. **[CONFIRMAR]** el texto legal definitivo
 (`src/tablet/content.ts`) y el tiempo de conservación.
 

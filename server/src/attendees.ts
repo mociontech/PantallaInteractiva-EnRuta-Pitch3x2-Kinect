@@ -7,6 +7,8 @@ import { isGivenName } from './givenNames';
 export interface Attendee {
   cedula: string;
   nombre: string;
+  /** Cargo de trabajo (columna "Cargo de Trabajo" del CSV). */
+  cargo: string;
   correo: string;
 }
 
@@ -92,6 +94,7 @@ const ALIASES = {
   cedula: ['cedula', 'cc', 'documento', 'identificacion', 'numero de documento', 'numero de identificacion', 'numero documento', 'no. documento', 'nro documento', 'id'],
   nombre: ['nombre', 'nombres', 'nombre completo', 'nombre y apellido', 'nombres y apellidos', 'nombre del colaborador', 'colaborador', 'asistente', 'name'],
   apellido: ['apellido', 'apellidos'],
+  cargo: ['cargo', 'cargo de trabajo', 'cargo del colaborador', 'puesto', 'posicion', 'cargo actual'],
   correo: ['correo', 'correo electronico', 'correo corporativo', 'email', 'e-mail', 'mail'],
 } as const;
 
@@ -100,6 +103,7 @@ const STEMS = {
   cedula: ['cedula', 'documento', 'identificacion'],
   nombre: ['nombre', 'colaborador', 'empleado'],
   apellido: ['apellido'],
+  cargo: ['cargo', 'puesto'],
   correo: ['correo', 'email', 'mail'],
 } as const;
 
@@ -185,6 +189,7 @@ class AttendeeSource {
     const iCedula = pick('cedula');
     const iCorreo = pick('correo');
     const iApellido = pick('apellido');
+    const iCargo = pick('cargo');
     const iNombre = pick('nombre');
     // El correo es opcional: si la base no lo trae, la tablet se lo pide a cada persona al registrarse.
     if (iCedula < 0 || iNombre < 0) {
@@ -202,7 +207,8 @@ class AttendeeSource {
         skipped++;
         continue;
       }
-      next.set(cedula, { cedula, nombre, correo });
+      const cargo = iCargo >= 0 ? (r[iCargo] ?? '').replace(/\s+/g, ' ').trim() : '';
+      next.set(cedula, { cedula, nombre, cargo, correo });
     }
     this.map = next;
     return { total: next.size, skipped, source };

@@ -13,6 +13,7 @@ db.exec(`
     cedula     TEXT NOT NULL UNIQUE,
     nombre     TEXT NOT NULL,
     correo     TEXT NOT NULL,
+    cargo      TEXT NOT NULL DEFAULT '',
     origen     TEXT NOT NULL,            -- 'base' (Sheet del cliente) | 'nuevo' (registrado en la tablet)
     consent_at TEXT,
     created_at TEXT NOT NULL
@@ -40,24 +41,19 @@ db.exec(`
     duration_ms    INTEGER NOT NULL,
     device_id      TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS outbox (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id  INTEGER NOT NULL REFERENCES sessions(id),
-    payload     TEXT NOT NULL,
-    status      TEXT NOT NULL,           -- pending | sent
-    attempts    INTEGER NOT NULL DEFAULT 0,
-    next_try_at INTEGER NOT NULL DEFAULT 0,
-    last_error  TEXT,
-    created_at  TEXT NOT NULL,
-    sent_at     TEXT
-  );
 `);
+
+// Bases creadas antes de existir `cargo`: se agrega la columna sin perder datos.
+if (!(db.prepare('PRAGMA table_info(participants)').all() as Array<{ name: string }>).some((c) => c.name === 'cargo')) {
+  db.exec("ALTER TABLE participants ADD COLUMN cargo TEXT NOT NULL DEFAULT ''");
+}
 
 export interface Participant {
   id: number;
   cedula: string;
   nombre: string;
   correo: string;
+  cargo: string;
   origen: 'base' | 'nuevo';
   consent_at: string | null;
   created_at: string;
@@ -86,18 +82,6 @@ export interface SessionRow {
   solutions: string;
   duration_ms: number;
   device_id: string;
-}
-
-export interface OutboxRow {
-  id: number;
-  session_id: number;
-  payload: string;
-  status: 'pending' | 'sent';
-  attempts: number;
-  next_try_at: number;
-  last_error: string | null;
-  created_at: string;
-  sent_at: string | null;
 }
 
 /** Los resultados de node:sqlite llegan como objetos genéricos: se tipan aquí, en un solo lugar. */

@@ -1,19 +1,21 @@
 import { config } from './config';
-import { all, db, now, one, run, type OutboxRow } from './db';
 
 /**
- * Envío del puntaje a Evius, con cola (outbox) y reintentos: la experiencia nunca espera a Evius
- * y, si no hay internet, los puntajes se guardan y se envían cuando vuelva.
+ * Gateway hacia Evius (Datahub). Solo sabe hablar HTTP con Evius; la cola y los reintentos viven en outbox.ts.
+ * Las funciones LANZAN un error si la entrega no se pudo confirmar, para que el outbox reintente.
  *
- * [CONFIRMAR] El formato real (URL, autenticación, campos) depende de la API de Evius. Todo lo que
- * cambie se ajusta aquí y en las variables EVIUS_* de .env.
+ * [CONFIRMAR] Los nombres de los campos del cuerpo (eventId, cedula, name, cargo, score…) y las rutas son los del patrón
+ * de Mirage descrito para este proyecto; si Evius usa otros, se ajustan SOLO en este archivo.
  */
-export interface EviusPayload {
-  experience: string;
-  deviceId: string;
+
+export interface EviusAttendee {
   cedula: string;
   nombre: string;
-  correo: string;
+  cargo: string;
+}
+
+export interface EviusResult {
+  sessionId: number;
   score: number;
   completed: boolean;
   lastStep: number;
@@ -23,74 +25,96 @@ export interface EviusPayload {
   durationMs: number;
   startedAt: string | null;
   endedAt: string;
-  sessionId: number;
+  deviceId: string;
 }
 
-async function post(payload: EviusPayload): Promise<{ ok: boolean; error?: string }> {
-  const { mode, url, token, authHeader } = config.evius;
+interface HttpResult {
+  status: number;
+  text: string;
+}
+
+async function post(route: string, body: unknown, idempotencyKey: string): Promise<HttpResult> {
+  const { url, token } = config.evius;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${url.replace(/\/$/, '')}${route}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  return { status: res.status, text: await res.text() };
+}
+
+const ok = (r: HttpResult): boolean => r.status >= 200 && r.status < 300;
+
+function fail(route: string, r: HttpResult): Error {
+  return new Error(`POST ${route} -> HTTP ${r.status}: ${r.text.slice(0, 160).replace(/\s+/g, ' ')}`);
+}
+
+/** Registra a la persona en el evento. Evius la deduplica por cédula + eventId (un 409 = ya estaba registrada = éxito). */
+export async function deliverAttendeeToEvius(a: EviusAttendee): Promise<void> {
+  const { mode, eventId, experienceName } = config.evius;
   if (mode === 'mock') {
-    console.log('[evius:mock]', JSON.stringify(payload));
-    return { ok: true };
+    console.log('[evius:mock] attendee', JSON.stringify(a));
+    return;
   }
-  if (mode === 'off') return { ok: false, error: 'Evius sin configurar (EVIUS_URL)' };
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (token) headers[authHeader] = authHeader.toLowerCase() === 'authorization' ? `Bearer ${token}` : token;
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` };
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-export function enqueueForEvius(sessionId: number, payload: EviusPayload): void {
-  run(
-    'INSERT INTO outbox (session_id, payload, status, created_at) VALUES (?, ?, ?, ?)',
-    sessionId, JSON.stringify(payload), 'pending', now(),
+  const route = '/attendees';
+  const r = await post(
+    route,
+    { eventId, cedula: a.cedula, name: a.nombre, cargo: a.cargo, source: experienceName },
+    `att:${eventId}:${a.cedula}`,
   );
-  void processOutbox();
+  if (ok(r) || r.status === 409) return;
+  throw fail(route, r);
 }
 
-let running = false;
-
-/** Intenta enviar lo pendiente. Backoff creciente por intento (máx. 5 min). */
-export async function processOutbox(): Promise<void> {
-  if (running || config.evius.mode === 'off') return;
-  running = true;
-  try {
-    const due = all<OutboxRow>(
-      "SELECT * FROM outbox WHERE status = 'pending' AND next_try_at <= ? ORDER BY id LIMIT 10",
-      Date.now(),
-    );
-    for (const item of due) {
-      const result = await post(JSON.parse(item.payload) as EviusPayload);
-      if (result.ok) {
-        db.prepare("UPDATE outbox SET status = 'sent', sent_at = ?, last_error = NULL WHERE id = ?").run(now(), item.id);
-      } else {
-        const attempts = item.attempts + 1;
-        const backoff = Math.min(300_000, config.evius.retryMs * 2 ** Math.min(attempts, 5));
-        db.prepare('UPDATE outbox SET attempts = ?, last_error = ?, next_try_at = ? WHERE id = ?')
-          .run(attempts, result.error ?? 'error', Date.now() + backoff, item.id);
-        console.warn(`[evius] envío ${item.id} falló (intento ${attempts}): ${result.error}`);
-      }
-    }
-  } finally {
-    running = false;
+/**
+ * Guarda el puntaje. Si el evento no tiene el endpoint /experiences (404/405/501), cae a /activities con el puntaje
+ * embebido como JSON en `longDescription`.
+ */
+export async function deliverExperienceToEvius(a: EviusAttendee, result: EviusResult, idempotencyKey: string): Promise<void> {
+  const { mode, eventId, experienceId, experienceName } = config.evius;
+  if (mode === 'mock') {
+    console.log('[evius:mock] experience', JSON.stringify({ cedula: a.cedula, ...result }));
+    return;
   }
-}
+  const details = {
+    score: result.score,
+    completed: result.completed,
+    lastStep: result.lastStep,
+    gameScore: result.gameScore,
+    areas: result.areas,
+    solutionsViewed: result.solutionsViewed,
+    durationMs: result.durationMs,
+    startedAt: result.startedAt,
+    endedAt: result.endedAt,
+    deviceId: result.deviceId,
+    sessionId: result.sessionId,
+  };
+  const route = '/experiences';
+  const r = await post(
+    route,
+    { eventId, experienceId, experienceName, cedula: a.cedula, name: a.nombre, cargo: a.cargo, ...details, idempotencyKey },
+    idempotencyKey,
+  );
+  if (ok(r)) return;
+  if (![404, 405, 501].includes(r.status)) throw fail(route, r);
 
-/** El operador fuerza el reintento inmediato de todo lo pendiente. */
-export function retryOutboxNow(): void {
-  db.prepare("UPDATE outbox SET next_try_at = 0 WHERE status = 'pending'").run();
-  void processOutbox();
-}
-
-export function pendingCount(): number {
-  return one<{ n: number }>("SELECT COUNT(*) AS n FROM outbox WHERE status = 'pending'")?.n ?? 0;
-}
-
-export function startOutboxLoop(): void {
-  setInterval(() => void processOutbox(), config.evius.retryMs).unref();
-  void processOutbox();
+  const fallback = '/activities';
+  const f = await post(
+    fallback,
+    {
+      eventId,
+      experienceId,
+      cedula: a.cedula,
+      name: experienceName,
+      shortDescription: `${a.nombre}: ${result.score} puntos`,
+      longDescription: JSON.stringify({ cedula: a.cedula, nombre: a.nombre, cargo: a.cargo, ...details }),
+      idempotencyKey,
+    },
+    idempotencyKey,
+  );
+  if (ok(f)) return;
+  throw new Error(`${fail(route, r).message} · fallback ${fail(fallback, f).message}`);
 }
