@@ -9,6 +9,8 @@ try {
 
 const env = process.env;
 
+export type NameOrder = 'auto' | 'apellidos-nombres' | 'nombres-apellidos' | 'tal-cual';
+
 function num(v: string | undefined, fallback: number): number {
   const n = Number(v);
   return v !== undefined && v !== '' && Number.isFinite(n) ? n : fallback;
@@ -38,12 +40,13 @@ export const config = {
     /** Cada cuánto se vuelve a leer la fuente (ms). */
     refreshMs: num(env.ATTENDEES_REFRESH_MS, 300_000),
     /**
-     * Cómo viene escrito el nombre en la base: 'apellidos-nombres' ("PEREZ GOMEZ ANA MARIA", lo habitual en nómina),
-     * 'nombres-apellidos' o 'tal-cual' (solo se pone en formato Título). [CONFIRMAR] con el Sheet real.
+     * Cómo viene escrito el nombre en la base: 'auto' (por defecto: decide fila por fila, la base real mezcla ambos),
+     * 'apellidos-nombres' ("PEREZ GOMEZ ANA MARIA"), 'nombres-apellidos' o 'tal-cual' (solo formato Título).
      */
-    nameOrder: ((): 'apellidos-nombres' | 'nombres-apellidos' | 'tal-cual' => {
-      if (env.NAME_ORDER === 'nombres-apellidos' || env.NAME_ORDER === 'tal-cual') return env.NAME_ORDER;
-      return 'apellidos-nombres';
+    nameOrder: ((): NameOrder => {
+      const v = env.NAME_ORDER;
+      if (v === 'apellidos-nombres' || v === 'nombres-apellidos' || v === 'tal-cual') return v;
+      return 'auto';
     })(),
   },
 

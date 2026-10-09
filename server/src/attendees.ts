@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { config } from './config';
+import { config, type NameOrder } from './config';
 import { parseCsv } from './csv';
+import { isGivenName } from './givenNames';
 
 export interface Attendee {
   cedula: string;
@@ -22,14 +23,42 @@ export function isValidCedula(cedula: string): boolean {
 const PARTICLES = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'san', 'santa', 'da', 'di', 'van', 'von']);
 
 /**
+ * Detecta el orden de UNA fila: si los nombres de pila conocidos están al principio ("XIOMARA JOSE GAMARRA MENDOZA")
+ * en vez de al final ("GAMARRA MENDOZA XIOMARA JOSE"), la fila viene como nombres-apellidos. Con empate, apellidos-nombres.
+ */
+function detectOrder(tokens: string[]): 'apellidos-nombres' | 'nombres-apellidos' {
+  const words = tokens.filter((t) => !PARTICLES.has(t));
+  const n = words.length;
+  if (n < 2) return 'apellidos-nombres';
+  const at = (i: number): number => (isGivenName(words[i] ?? '') ? 1 : 0);
+  const head = at(0) + (n >= 4 ? at(1) : 0);
+  const tail = at(n - 1) + (n >= 4 ? at(n - 2) : 0);
+  return head > tail ? 'nombres-apellidos' : 'apellidos-nombres';
+}
+
+/** Cuántas de las últimas unidades son nombres de pila (el resto son apellidos). */
+function givenNameCount(units: string[]): number {
+  const n = units.length;
+  if (n <= 2) return 1;
+  const isName = (i: number): boolean => isGivenName(units[i] ?? '');
+  // 3 unidades: "PEREZ GOMEZ ANA" (1 nombre) o "LOPEZ ANA MARIA" (2 nombres): si las dos últimas son nombres de pila, son 2.
+  if (n === 3) return isName(1) && isName(2) ? 2 : 1;
+  // 4 o más: lo habitual son 2 apellidos y 2 nombres; con 5+ puede haber un tercer nombre ("... JUAN CARLOS ANDRES").
+  let k = 2;
+  if (n >= 5 && isName(n - k - 1)) k = 3;
+  return k;
+}
+
+/**
  * Deja el nombre legible: "PEREZ GOMEZ ANA MARIA" -> "Ana Maria Perez Gomez" (nombres primero).
  * Para separar apellidos de nombres se agrupan las partículas con la palabra siguiente ("DE LA CRUZ" es una unidad)
- * y se toman como nombres las últimas 1 (hasta 3 unidades) o 2 unidades (4 o más). Es una heurística: la persona puede
- * corregir su nombre en la tablet antes de entrar a la fila.
+ * y se decide cuántas de las últimas unidades son nombres (ver givenNameCount, con una lista de nombres de pila comunes
+ * para desempatar). Es una heurística: revisa el resultado con la base real.
  */
-export function formatName(raw: string, order: 'apellidos-nombres' | 'nombres-apellidos' | 'tal-cual'): string {
+export function formatName(raw: string, requested: NameOrder): string {
   const tokens = raw.replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean);
   if (tokens.length === 0) return '';
+  const order = requested === 'auto' ? detectOrder(tokens) : requested;
   let units = tokens;
   if (order !== 'tal-cual') {
     units = [];
@@ -43,7 +72,7 @@ export function formatName(raw: string, order: 'apellidos-nombres' | 'nombres-ap
     }
     if (pending.length) units.push(pending.join(' '));
     if (units.length > 1) {
-      const names = units.length <= 3 ? 1 : 2;
+      const names = givenNameCount(units);
       if (order === 'apellidos-nombres') units = [...units.slice(-names), ...units.slice(0, -names)];
     }
   }

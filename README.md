@@ -71,9 +71,11 @@ tildes ni mayúsculas ("Identificación", "Nombre de Empleado", "Correo corporat
 Las cédulas se comparan solo por dígitos (`72.345.678` = `72345678`).
 
 - **Sin correo:** el correo no se usa. Quien está en la base entra con solo la cédula (la tablet le muestra "¡Listo, Ana Maria!"). El servidor lo acepta si algún día se envía.
-- **Formato del nombre:** viene en MAYÚSCULAS y como "APELLIDOS NOMBRES" (`NAME_ORDER=apellidos-nombres`, por defecto). Se convierte a
-  "Nombres Apellidos" en formato Título (`PEREZ GOMEZ ANA MARIA` → `Ana Maria Perez Gomez`; reconoce `DE LA`, `DEL`…). La separación es una heurística
-  pasa tal cual a la pared y a Evius (revisa que se vea bien con un par de personas reales). Si la base viene "NOMBRES APELLIDOS", usa `NAME_ORDER=nombres-apellidos`.
+- **Formato del nombre:** viene en MAYÚSCULAS y casi siempre como "APELLIDOS NOMBRES", pero algunas filas vienen "NOMBRES APELLIDOS".
+  Con `NAME_ORDER=auto` (por defecto) cada fila decide su orden usando una lista de nombres de pila comunes (`server/src/givenNames.ts`) y se
+  convierte a "Nombres Apellidos" en formato Título (`PEREZ GOMEZ ANA MARIA` → `Ana Maria Perez Gomez`; reconoce `DE LA`, `DEL`…).
+  Es una heurística: con la base real reconoce el primer nombre en 179 de 179 filas, pero revisa a mano unas cuantas personas.
+  Se puede forzar con `NAME_ORDER=apellidos-nombres`, `nombres-apellidos` o `tal-cual`.
 - **Personas que no están en la base** pueden registrarse en la tablet ("Regístrate") con cédula y nombre.
 - Opcional: `ATTENDEES_CSV_URL` lee un Sheet publicado por enlace (se relee cada 5 min); no se recomienda con datos de colaboradores.
 - Sin archivo ni URL se usa `server/data/asistentes.sample.csv` (datos de ejemplo).
