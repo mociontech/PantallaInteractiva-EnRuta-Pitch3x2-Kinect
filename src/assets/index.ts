@@ -3,11 +3,11 @@ import bgIdle from './bg/bg-idle.webp';
 import bgSwoosh from './bg/bg-swoosh.webp';
 import bgPlain from './bg/bg-plain.webp';
 import tabletBgIdle from './tablet/bg-idle.webp';
-import logoTablet from './logo/logo-tablet.svg';
-import logoWordmark from './logo/wordmark.svg';
-import logoMark from './logo/mark.svg';
-import logoMarkDetail from './logo/mark-detail.svg';
-import logoSub from './logo/sub.svg';
+import lockupMark from './logo/lockup-mark.svg';
+import lockupSwoosh from './logo/lockup-swoosh.svg';
+import lockupDetail from './logo/lockup-detail.svg';
+import lockupWordmark from './logo/lockup-wordmark.svg';
+import lockupCamara from './logo/lockup-camara.svg';
 import fieldUserIcon from './icons/field-user.svg';
 import areaAprenderIcon from './icons/area-aprender.svg';
 import areaAprenderS2Icon from './icons/area-aprender-s2.svg';
@@ -44,9 +44,10 @@ import solProgramasIcon from './icons/sol-programas.svg';
 
 export const BG = { idle: bgIdle, swoosh: bgSwoosh, plain: bgPlain } as const;
 export type BgKind = keyof typeof BG;
-/** Tablet de registro (/registro): fondo de inicio y logo sin la leyenda EMPRESARIAL. */
-export const TABLET = { bgIdle: tabletBgIdle, bgForm: bgSwoosh, logo: logoTablet } as const;
-export const LOGO = { wordmark: logoWordmark, mark: logoMark, markDetail: logoMarkDetail, sub: logoSub } as const;
+/** Tablet de registro (/registro): fondos de inicio y de formularios. */
+export const TABLET = { bgIdle: tabletBgIdle, bgForm: bgSwoosh } as const;
+/** Logo EnRuta | Cámara de Comercio de Cartagena, en 5 piezas SVG del Figma de creatividad. */
+export const LOGO = { mark: lockupMark, swoosh: lockupSwoosh, detail: lockupDetail, wordmark: lockupWordmark, camara: lockupCamara } as const;
 
 /** Iconos por nombre (los usan content.ts y los componentes). */
 export const ICONS: Record<string, string> = {

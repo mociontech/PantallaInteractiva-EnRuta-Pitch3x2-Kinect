@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ICONS, TABLET } from '../assets';
+import { Logo as Lockup } from '../components/Logo/Logo';
 import { OfflineError, api } from './api';
 import { T, greetingName } from './content';
 import s from './tablet.module.css';
@@ -43,7 +44,11 @@ function FullscreenButton() {
 }
 
 function Logo({ x, y, width }: { x: number; y: number; width: number }) {
-  return <img alt="EnRuta" src={TABLET.logo} className={s.logo} style={{ left: x, top: y, width, height: width * (259 / 1150) }} />;
+  return (
+    <div className={s.logo} style={{ left: x, top: y }}>
+      <Lockup width={width} />
+    </div>
+  );
 }
 
 function Field({ y, bad, icon, children }: { y: number; bad?: boolean; icon?: ReactNode; children: ReactNode }) {
@@ -202,7 +207,7 @@ export function TabletApp() {
 
         {screen.name === 'attract' && (
           <>
-            <Logo x={385} y={386} width={1150} />
+            <Logo x={370} y={422} width={1214} />
             <div className={s.attractText}>{T.attract}</div>
             <button type="button" className={s.fill} aria-label={T.attract} onClick={() => setScreen({ name: 'cedula' })} />
           </>
@@ -211,7 +216,7 @@ export function TabletApp() {
         {screen.name === 'cedula' && (
           <>
             <button type="button" className={`${s.link} ${s.linkBack}`} onClick={goAttract}>‹ {T.cedula.back}</button>
-            <Logo x={551} y={115} width={818} />
+            <Logo x={551} y={102} width={822} />
             <div className={s.title} style={{ top: 399, height: 78, fontSize: 97, lineHeight: '78px' }}>{T.cedula.title}</div>
             <Field y={561} icon={userIcon} bad={touched && cedula.length < 5}>
               <input
@@ -272,7 +277,7 @@ export function TabletApp() {
 
         {screen.name === 'listo' && (
           <>
-            <Logo x={551} y={115} width={818} />
+            <Logo x={551} y={182} width={822} />
             <div className={s.check}>✓</div>
             <div className={s.hello}>{T.listo.hello(greetingName(screen.nombre))}</div>
             <div className={s.sub}>

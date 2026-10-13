@@ -36,7 +36,7 @@ export function Frame() {
     <>
       {c.logo && (
         <div style={{ position: 'absolute', left: LAYOUT.marginX, top: 92 }}>
-          <Logo width={331} />
+          <Logo width={505} />
         </div>
       )}
       {c.exit && (

@@ -50,11 +50,28 @@ export function Idle() {
     return () => window.removeEventListener('keydown', onKey);
   }, [act]);
 
+  // Reposo (diseño "Reposo"): con registro y sin nadie asignado, solo el logo y la invitación a registrarse en la tablet.
+  if (reg && assigned === null) {
+    return (
+      <div className={s.screen}>
+        <Background kind="idle" />
+        <div style={at(493, 470)}><Logo width={935} /></div>
+        <p
+          style={{
+            ...at(0, 690, 1920), margin: 0, textAlign: 'center', fontSize: 51, lineHeight: '55px', fontWeight: 800, color: 'var(--white)',
+          }}
+        >
+          {link.connected ? TEXT.idle.registerPrompt : TEXT.idle.connecting}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className={s.screen}>
       <Background kind="idle" />
 
-      <div style={at(96, 113)}><Logo width={450} /></div>
+      <div style={at(96, 131)}><Logo width={559} /></div>
 
       <h1
         style={{

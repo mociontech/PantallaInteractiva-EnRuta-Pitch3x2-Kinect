@@ -1,18 +1,24 @@
 import { LOGO } from '../../assets';
 
-/** El logo EnRuta de creatividad viene en 4 piezas SVG; se componen con las medidas del diseño (497×112). */
-const W = 497.12;
-const H = 112;
+/**
+ * Logo "EnRuta | Cámara de Comercio Cartagena" de creatividad: 5 piezas SVG compuestas con las medidas del diseño
+ * (839 × 135,6; medidas tomadas del grupo del Figma, pantalla 2880 px de ancho).
+ */
+const W = 839;
+const H = 135.6;
 
-export function Logo({ width = 331 }: { width?: number }) {
+export function Logo({ width = 559 }: { width?: number }) {
   const k = width / W;
-  const px = (n: number): number => n * k;
+  const box = (x: number, y: number, w: number, h: number) => ({
+    position: 'absolute' as const, left: x * k, top: y * k, width: w * k, height: h * k,
+  });
   return (
-    <div style={{ position: 'relative', width: px(W), height: px(H) }} role="img" aria-label="EnRuta Empresarial">
-      <img alt="" src={LOGO.wordmark} style={{ position: 'absolute', left: px(188.92), top: px(13.96), width: px(308.2), height: px(64.3) }} />
-      <img alt="" src={LOGO.mark} style={{ position: 'absolute', left: 0, top: 0, width: px(162.26), height: px(112) }} />
-      <img alt="" src={LOGO.markDetail} style={{ position: 'absolute', left: px(74.99), top: px(51.34), width: px(87.27), height: px(60.66) }} />
-      <img alt="" src={LOGO.sub} style={{ position: 'absolute', left: px(188.91), top: px(94.4), width: px(308.2), height: px(16.54) }} />
+    <div style={{ position: 'relative', width: W * k, height: H * k }} role="img" aria-label="EnRuta · Cámara de Comercio de Cartagena">
+      <img alt="" src={LOGO.mark} style={box(0, 0, 196.4, 135.6)} />
+      <img alt="" src={LOGO.swoosh} style={box(130.5, 55.1, 139.6, 97)} />
+      <img alt="" src={LOGO.detail} style={box(90.7, 62.2, 105.6, 73.4)} />
+      <img alt="" src={LOGO.wordmark} style={box(228.7, 16.9, 373.1, 77.8)} />
+      <img alt="" src={LOGO.camara} style={box(652, 0, 186.9, 135.6)} />
     </div>
   );
 }
