@@ -109,6 +109,20 @@ export const TEXT = {
     hello: (nombre: string) => `Hola, ${nombre}`,
     raise: 'Levanta tu mano derecha para comenzar.',
   },
+  // Pop-up tras el registro: guía a la persona al centro y a la distancia correcta antes de ocultar la cámara. [CONFIRMAR] textos
+  position: {
+    title: 'Ubícate frente a la pantalla',
+    subtitle: 'Párate en el centro, de frente, a unos pasos de la pantalla.',
+    done: '¡Listo! Ya te tengo.',
+    hint: {
+      none: 'Aún no te veo. Párate frente a la pantalla.',
+      closer: 'Acércate un poco.',
+      back: 'Aléjate un poco.',
+      left: 'Muévete un poco a tu izquierda.',
+      right: 'Muévete un poco a tu derecha.',
+      ok: 'Perfecto, quédate así…',
+    },
+  },
   home: { title: 'Tu ruta en 5 pasos simples', exit: 'SALIR' },
 
   badge: { info: 'INFORMATIVO', game1: 'JUEGO 1', game3: 'JUEGO 3' },

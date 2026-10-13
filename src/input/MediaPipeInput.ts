@@ -2,7 +2,7 @@ import { FilesetResolver, PoseLandmarker, type NormalizedLandmark } from '@media
 import { MEDIAPIPE } from '../config/experience';
 import { calibration, rawHand, setCalibration } from './calibration';
 import type { InputProvider } from './InputProvider';
-import { link, pushSample } from './cursorStore';
+import { gate, link, pushSample, type GateState } from './cursorStore';
 import { OneEuro } from './oneEuro';
 
 // Índices de MediaPipe Pose (derecha = derecha anatómica de la persona).
@@ -12,8 +12,8 @@ const R_ELBOW = 14;
 const R_WRIST = 16;
 const R_INDEX = 20;
 
-function visible(l: NormalizedLandmark | undefined): l is NormalizedLandmark {
-  return l !== undefined && (l.visibility ?? 1) >= MEDIAPIPE.minVisibility;
+function visible(l: NormalizedLandmark | undefined, min: number = MEDIAPIPE.minVisibility): l is NormalizedLandmark {
+  return l !== undefined && (l.visibility ?? 1) >= min;
 }
 
 /** Una persona detectada en el fotograma, con medidas en "unidades de ancho de imagen". */
@@ -24,8 +24,10 @@ interface Person {
   ay: number;
   /** Ancho de hombros. */
   S: number;
-  /** Cuánto está la muñeca por encima del codo, en anchos de hombro (+ = levantada). */
+  /** Cuánto está la muñeca por encima del codo, en anchos de hombro (+ = levantada). Visibilidad laxa: con la mano cerca de la cara se oscurece. */
   raise: number;
+  /** Igual, pero exigiendo buena visibilidad (para adquirir el control, donde un falso positivo cuesta más). */
+  raiseStrict: number;
   sizeOk: boolean;
   role: 'locked' | 'candidate' | 'far' | 'idle';
 }
@@ -37,6 +39,8 @@ interface Lock {
   S: number;
   lastSeen: number;
   handDownSince: number | null;
+  /** Fijado en la pantalla "Posiciónate": no se suelta por bajar la mano. */
+  sticky: boolean;
 }
 
 /**
@@ -67,8 +71,12 @@ export class MediaPipeInput implements InputProvider {
   private lastX = 0.5;
   private lastY = 0.5;
   private tracked = false;
-  /** Vista de la cámara en una esquina. Se oculta con ?preview=0. */
-  private showPreview = new URLSearchParams(window.location.search).get('preview') !== '0';
+  /** Vista de la cámara en una esquina: solo para depuración (?debug=1 o ?preview=1). En producción solo se ve en "Posiciónate". */
+  private showPreview = ((q: URLSearchParams) => q.get('preview') === '1' || q.get('debug') === '1')(new URLSearchParams(window.location.search));
+  private releaseSeen = gate.release;
+  private gateHold: number | null = null;
+  private lastRaw: { u: number; v: number; t: number } | null = null;
+  private jumpRejects = 0;
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
@@ -139,6 +147,7 @@ export class MediaPipeInput implements InputProvider {
     this.preview = null;
     this.lock = null;
     this.cand = null;
+    this.lastRaw = null;
     rawHand.valid = false;
     link.lock = 'none';
     link.people = 0;
@@ -167,12 +176,14 @@ export class MediaPipeInput implements InputProvider {
       if (S <= 0) continue;
       const el = lms[R_ELBOW];
       const wr = lms[R_WRIST];
-      const raise = visible(el) && visible(wr) ? ((el.y - wr.y) * aspect) / S : Number.NEGATIVE_INFINITY;
+      const arm = MEDIAPIPE.armVisibility;
+      const raise = visible(el, arm) && visible(wr, arm) ? ((el.y - wr.y) * aspect) / S : Number.NEGATIVE_INFINITY;
+      const raiseStrict = visible(el) && visible(wr) ? raise : Number.NEGATIVE_INFINITY;
       const sizeOk = ref
         ? S >= ref * MEDIAPIPE.sizeRange.min && S <= ref * MEDIAPIPE.sizeRange.max
         : S >= MEDIAPIPE.minShoulderWidth;
       out.push({
-        lms, S, raise, sizeOk, role: sizeOk ? 'idle' : 'far',
+        lms, S, raise, raiseStrict, sizeOk, role: sizeOk ? 'idle' : 'far',
         ax: (rs.x + ls.x) / 2, ay: ((rs.y + ls.y) / 2) * aspect,
       });
     }
@@ -185,12 +196,18 @@ export class MediaPipeInput implements InputProvider {
     if (lock) {
       let best: Person | null = null;
       let bestD = Infinity;
+      // Si se dejó de ver al usuario, el radio de búsqueda crece despacio: así quien está detrás no hereda el control en un parpadeo.
+      const gap = (now - lock.lastSeen) / 1000;
+      const radius = Math.min(MEDIAPIPE.followMaxRadius, MEDIAPIPE.followRadius + gap * MEDIAPIPE.followGrowPerSec);
       for (const p of people) {
-        if (Math.abs(p.S - lock.S) / lock.S > MEDIAPIPE.followSizeTolerance) continue;
+        const dS = Math.abs(p.S - lock.S) / lock.S;
+        if (dS > MEDIAPIPE.followSizeTolerance) continue;
         const d = Math.hypot(p.ax - lock.ax, p.ay - lock.ay) / lock.S;
-        if (d < MEDIAPIPE.followRadius && d < bestD) {
+        if (d >= radius) continue;
+        const score = d + dS; // posición y tamaño: la misma persona
+        if (score < bestD) {
           best = p;
-          bestD = d;
+          bestD = score;
         }
       }
       if (best) {
@@ -198,7 +215,7 @@ export class MediaPipeInput implements InputProvider {
         lock.ay = best.ay;
         lock.S = lock.S * 0.8 + best.S * 0.2;
         lock.lastSeen = now;
-        if (best.raise >= MEDIAPIPE.keepMargin) {
+        if (lock.sticky || best.raise >= MEDIAPIPE.keepMargin) {
           lock.handDownSince = null;
         } else {
           lock.handDownSince ??= now;
@@ -210,14 +227,15 @@ export class MediaPipeInput implements InputProvider {
         best.role = 'locked';
         return best;
       }
-      if (now - lock.lastSeen > MEDIAPIPE.lostMs) this.lock = null;
+      if (now - lock.lastSeen > (lock.sticky ? MEDIAPIPE.stickyLostMs : MEDIAPIPE.lostMs)) this.lock = null;
       return null;
     }
 
     // Sin usuario activo: el candidato debe sostener la mano levantada acquireMs.
     let cand: Person | null = null;
     for (const p of people) {
-      if (p.sizeOk && p.raise >= MEDIAPIPE.raiseMargin && (!cand || p.S > cand.S)) cand = p;
+      const centered = Math.abs(1 - p.ax - 0.5) <= MEDIAPIPE.acquireHalfWidth;
+      if (p.sizeOk && centered && p.raiseStrict >= MEDIAPIPE.raiseMargin && (!cand || p.S > cand.S)) cand = p;
     }
     if (!cand) {
       this.cand = null;
@@ -233,12 +251,56 @@ export class MediaPipeInput implements InputProvider {
     c.ay = cand.ay;
     c.S = cand.S;
     if (now - c.since >= MEDIAPIPE.acquireMs) {
-      this.lock = { ax: cand.ax, ay: cand.ay, S: cand.S, lastSeen: now, handDownSince: null };
+      this.lock = { ax: cand.ax, ay: cand.ay, S: cand.S, lastSeen: now, handDownSince: null, sticky: false };
       this.cand = null;
       cand.role = 'locked';
       return cand;
     }
     return null;
+  }
+
+  /** Rango de ancho de hombros aceptado en "Posiciónate": respecto a la calibración, o uno genérico si no hay. */
+  private sizeBand(): [number, number] {
+    const ref = calibration.shoulderRef;
+    const g = MEDIAPIPE.gate;
+    return ref ? [ref * g.sizeLow, ref * g.sizeHigh] : [g.fallbackMin, g.fallbackMax];
+  }
+
+  /** "Posiciónate": mide a la persona más centrada y, si está en el centro y a la distancia correcta el tiempo pedido, la fija. */
+  private runGate(people: Person[], now: number): void {
+    if (!gate.active || gate.done) {
+      this.gateHold = null;
+      return;
+    }
+    let best: Person | null = null;
+    let bestD = Infinity;
+    for (const p of people) {
+      const d = Math.abs(1 - p.ax - 0.5);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    let state: GateState = 'none';
+    if (best) {
+      const [lo, hi] = this.sizeBand();
+      const mx = 1 - best.ax; // imagen espejada: izquierda de la imagen = izquierda de la persona al mirarse
+      const lim = MEDIAPIPE.gate.centerHalfWidth;
+      state = best.S < lo ? 'closer' : best.S > hi ? 'back' : mx < 0.5 - lim ? 'right' : mx > 0.5 + lim ? 'left' : 'ok';
+    }
+    gate.state = state;
+    if (best && state === 'ok') {
+      this.gateHold ??= now;
+      gate.progress = Math.min(1, (now - this.gateHold) / MEDIAPIPE.gate.holdMs);
+      if (gate.progress >= 1) {
+        this.lock = { ax: best.ax, ay: best.ay, S: best.S, lastSeen: now, handDownSince: null, sticky: true };
+        this.cand = null;
+        gate.done = true;
+      }
+    } else {
+      this.gateHold = null;
+      gate.progress = 0;
+    }
   }
 
   private loop = (): void => {
@@ -252,7 +314,14 @@ export class MediaPipeInput implements InputProvider {
     const result = lm.detectForVideo(v, now);
     const aspect = v.videoHeight / v.videoWidth;
 
+    if (gate.release !== this.releaseSeen) {
+      this.releaseSeen = gate.release;
+      this.lock = null;
+      this.cand = null;
+      this.gateHold = null;
+    }
     const people = this.measure(result.landmarks, aspect);
+    this.runGate(people, now);
     const user = this.select(people, now);
     link.people = people.length;
     link.lock = this.lock ? 'locked' : this.cand ? 'candidate' : 'none';
@@ -261,21 +330,32 @@ export class MediaPipeInput implements InputProvider {
     if (user && user.raise >= MEDIAPIPE.keepMargin) {
       const { lms, S } = user;
       const rs = lms[R_SHOULDER] as NormalizedLandmark;
-      const tip = lms[R_INDEX];
-      const h = visible(tip) ? tip : (lms[R_WRIST] as NormalizedLandmark);
+      const h = this.handPoint(lms, aspect);
       // Espejo en X; Y escalada a "unidades de ancho"; ambas en anchos de hombro desde el hombro derecho.
       const u = (1 - h.x - (1 - rs.x)) / S;
       const vv = ((h.y - rs.y) * aspect) / S;
-      rawHand.u = u;
-      rawHand.v = vv;
-      rawHand.s = S;
-      rawHand.valid = true;
-      hand = {
-        x: Math.min(1, Math.max(0, (u - calibration.offsetX) / calibration.reachWidth + 0.5)),
-        y: Math.min(1, Math.max(0, (vv - calibration.offsetY) / calibration.reachHeight + 0.5)),
-      };
+      // Con la mano cerca de la cara el modelo a veces salta: un salto imposible entre fotogramas se ignora.
+      const last = this.lastRaw;
+      const dt = last ? Math.max(0.016, (now - last.t) / 1000) : 1;
+      const jump = last ? Math.hypot(u - last.u, vv - last.v) : 0;
+      if (last && this.tracked && jump > MEDIAPIPE.maxHandSpeed * dt && this.jumpRejects < MEDIAPIPE.jumpGraceFrames) {
+        this.jumpRejects++;
+        this.lastSeen = now; // fotograma ignorado: la mano sigue ahí, se mantiene la última posición
+      } else {
+        this.jumpRejects = 0;
+        this.lastRaw = { u, v: vv, t: now };
+        rawHand.u = u;
+        rawHand.v = vv;
+        rawHand.s = S;
+        rawHand.valid = true;
+        hand = {
+          x: Math.min(1, Math.max(0, (u - calibration.offsetX) / calibration.reachWidth + 0.5)),
+          y: Math.min(1, Math.max(0, (vv - calibration.offsetY) / calibration.reachHeight + 0.5)),
+        };
+      }
     } else {
       rawHand.valid = false;
+      this.lastRaw = null;
     }
 
     if (hand) {
@@ -292,18 +372,62 @@ export class MediaPipeInput implements InputProvider {
     }
     pushSample({ x: this.lastX, y: this.lastY, tracked: this.tracked });
 
-    if (this.preview) this.drawPreview(v, people, user);
+    const surface = gate.canvas ?? this.preview;
+    if (surface) this.drawPreview(surface, v, people, user);
   };
 
-  private drawPreview(v: HTMLVideoElement, people: Person[], user: Person | null): void {
-    const c = this.preview;
-    const ctx = c?.getContext('2d');
-    if (!c || !ctx) return;
+  /**
+   * Punto de la mano: la muñeca prolongada hacia adelante por el antebrazo (estable: el modelo ve bien codo y muñeca incluso con
+   * la mano frente a la cara). La punta del índice solo se mezcla cuando es fiable y coherente con el antebrazo; si no, se ignora
+   * (antes se alternaba entre punta y muñeca y el cursor saltaba).
+   */
+  private handPoint(lms: NormalizedLandmark[], aspect: number): { x: number; y: number } {
+    const wr = lms[R_WRIST] as NormalizedLandmark;
+    const el = lms[R_ELBOW];
+    if (!visible(el, MEDIAPIPE.armVisibility)) return { x: wr.x, y: wr.y };
+    const k = MEDIAPIPE.handExtend;
+    const ext = { x: wr.x + (wr.x - el.x) * k, y: wr.y + (wr.y - el.y) * k };
+    const tip = lms[R_INDEX];
+    if (visible(tip, MEDIAPIPE.tipVisibility)) {
+      const fore = Math.hypot(wr.x - el.x, (wr.y - el.y) * aspect);
+      const off = Math.hypot(tip.x - ext.x, (tip.y - ext.y) * aspect);
+      if (off <= fore * 0.8) return { x: (ext.x + tip.x) / 2, y: (ext.y + tip.y) / 2 };
+    }
+    return ext;
+  }
+
+  private drawPreview(c: HTMLCanvasElement, v: HTMLVideoElement, people: Person[], user: Person | null): void {
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
     ctx.save();
     ctx.scale(-1, 1); // espejo
     ctx.drawImage(v, -c.width, 0, c.width, c.height);
     ctx.restore();
     const aspect = v.videoHeight / v.videoWidth;
+
+    if (gate.canvas === c) {
+      // "Posiciónate": franja central objetivo y los hombros de lo que se detecta.
+      const lim = MEDIAPIPE.gate.centerHalfWidth;
+      const ok = gate.state === 'ok';
+      ctx.fillStyle = ok ? 'rgba(80,220,120,0.16)' : 'rgba(255,255,255,0.10)';
+      ctx.fillRect((0.5 - lim) * c.width, 0, 2 * lim * c.width, c.height);
+      ctx.strokeStyle = ok ? '#4ade80' : '#ffffff';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([16, 12]);
+      ctx.strokeRect((0.5 - lim) * c.width, 4, 2 * lim * c.width, c.height - 8);
+      ctx.setLineDash([]);
+      for (const p of people) {
+        const rs = p.lms[R_SHOULDER] as NormalizedLandmark;
+        const ls = p.lms[L_SHOULDER] as NormalizedLandmark;
+        ctx.strokeStyle = ok ? '#4ade80' : '#ff9a3c';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo((1 - rs.x) * c.width, rs.y * c.height);
+        ctx.lineTo((1 - ls.x) * c.width, ls.y * c.height);
+        ctx.stroke();
+      }
+      return;
+    }
 
     // Todas las personas: verde = usuario activo, amarillo = candidato, rojo = fuera de rango, gris = quieta.
     const colors: Record<Person['role'], string> = { locked: '#3f3', candidate: '#ff0', far: '#f44', idle: '#aaa' };

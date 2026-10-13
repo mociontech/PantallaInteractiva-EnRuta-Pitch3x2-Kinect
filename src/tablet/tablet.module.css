@@ -188,3 +188,24 @@
 .hello { position: absolute; left: 110px; top: 520px; width: 1700px; text-align: center; font-size: 100px; line-height: 110px; font-weight: 800; color: var(--white); }
 .sub { position: absolute; left: 260px; top: 660px; width: 1400px; text-align: center; font-size: 56px; line-height: 68px; font-weight: 600; color: var(--white); }
 .hint { position: absolute; left: 260px; top: 820px; width: 1400px; text-align: center; font-size: 36px; line-height: 44px; font-weight: 400; color: var(--white); opacity: 0.85; }
+
+/* Icono pequeño de pantalla completa, fijo en la esquina (fuera del Stage escalado). */
+.fullscreen {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 50;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.fullscreen:active { background: rgba(255, 255, 255, 0.3); }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ICONS } from '../assets';
 import { Background } from '../components/Background/Background';
 import { CTAButton } from '../components/CTAButton/CTAButton';
@@ -9,9 +9,11 @@ import { TIMING } from '../config/experience';
 import { REGISTRATION } from '../config/registration';
 import { greetingName } from '../tablet/content';
 import { useServerLink } from '../services/serverLink';
-import { useTracked } from '../input/useCursor';
+import { link as camLink, releaseControl } from '../input/cursorStore';
+import { resolveInputKind, useTracked } from '../input/useCursor';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
+import { PositionGate } from './PositionGate';
 import s from './screens.module.css';
 
 /** Centros (x) de las 6 categorías, medidos del diseño de creatividad (2880 ÷ 1,5). */
@@ -26,7 +28,18 @@ export function Idle() {
   const reg = REGISTRATION.enabled;
   // Con registro: solo se puede empezar si la tablet dejó a alguien asignado.
   const assigned = reg ? link.assigned : null;
-  const canStart = tracked && (!reg || assigned !== null);
+  // Con registro y cámara: tras el registro se pide ubicarse en el centro (pop-up con la cámara) antes de poder comenzar.
+  const gateNeeded = reg && assigned !== null && resolveInputKind() === 'cam' && camLink.status !== 'closed';
+  const [positionedId, setPositionedId] = useState<number | null>(null);
+  const positioned = assigned !== null && positionedId === assigned.id;
+  const showGate = gateNeeded && !positioned;
+  const onPositioned = useCallback(() => setPositionedId(assigned?.id ?? null), [assigned?.id]);
+  const canStart = tracked && (!reg || (assigned !== null && !showGate));
+
+  // Al entrar a IDLE se suelta a quien tuviera el control (la sesión anterior terminó).
+  useEffect(() => {
+    releaseControl();
+  }, []);
 
   // Operador: tecla C abre la calibración.
   useEffect(() => {
@@ -107,6 +120,7 @@ export function Idle() {
         onActivate={() => act({ type: 'START', participant: assigned ?? undefined })}
         style={{ position: 'absolute', left: 1359, top: 1018 }}
       />
+      {showGate && assigned && <PositionGate key={assigned.id} onReady={onPositioned} />}
     </div>
   );
 }

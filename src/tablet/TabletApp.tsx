@@ -15,6 +15,33 @@ type Screen =
   | { name: 'datos' }
   | { name: 'listo'; queueId: number; nombre: string; position: number };
 
+/** Botón pequeño para pasar a pantalla completa (oculto donde el navegador no lo permite, p. ej. iPhone). */
+function FullscreenButton() {
+  const supported = typeof document !== 'undefined' && document.documentElement.requestFullscreen !== undefined;
+  const [on, setOn] = useState(() => document.fullscreenElement !== null);
+  useEffect(() => {
+    const sync = (): void => setOn(document.fullscreenElement !== null);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  if (!supported) return null;
+  const toggle = (): void => {
+    const job = document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    job.catch(() => undefined);
+  };
+  return (
+    <button type="button" className={s.fullscreen} onClick={toggle} aria-label={on ? 'Salir de pantalla completa' : 'Pantalla completa'}>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        {on ? (
+          <path d="M9 4v3a2 2 0 0 1-2 2H4M15 4v3a2 2 0 0 0 2 2h3M9 20v-3a2 2 0 0 0-2-2H4M15 20v-3a2 2 0 0 1 2-2h3" />
+        ) : (
+          <path d="M4 9V6a2 2 0 0 1 2-2h3M20 9V6a2 2 0 0 0-2-2h-3M4 15v3a2 2 0 0 0 2 2h3M20 15v3a2 2 0 0 1-2 2h-3" />
+        )}
+      </svg>
+    </button>
+  );
+}
+
 function Logo({ x, y, width }: { x: number; y: number; width: number }) {
   return <img alt="EnRuta" src={TABLET.logo} className={s.logo} style={{ left: x, top: y, width, height: width * (259 / 1150) }} />;
 }
@@ -169,6 +196,7 @@ export function TabletApp() {
 
   return (
     <div className={s.wrap}>
+      <FullscreenButton />
       <div className={s.stage} style={stageStyle}>
         <img alt="" src={isForm ? TABLET.bgForm : TABLET.bgIdle} className={s.bg} />
 

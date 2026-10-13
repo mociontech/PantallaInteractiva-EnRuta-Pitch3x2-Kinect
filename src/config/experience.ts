@@ -89,7 +89,7 @@ export const MEDIAPIPE = {
   reachOffsetX: 0.3,
   reachOffsetY: -0.7,
   /** Tiempo que se tolera perder la mano antes de marcar tracked=false. */
-  lostGraceMs: 350,
+  lostGraceMs: 700,
 
   /*
    * Selección y bloqueo del usuario. Solo controla quien levanta la mano derecha y la sostiene
@@ -106,12 +106,29 @@ export const MEDIAPIPE = {
   keepMargin: -0.15,
   acquireMs: 400,
   /** Mano abajo este tiempo = libera el control para que otra persona pueda tomarlo. */
-  releaseMs: 4000,
+  releaseMs: 6000,
   /** Si el usuario activo desaparece de la imagen este tiempo, se libera el control. */
   lostMs: 1500,
   /** Radio de seguimiento entre fotogramas y tolerancia de tamaño para reconocer a la misma persona. */
-  followRadius: 1.4,
-  followSizeTolerance: 0.4,
+  followRadius: 0.8,
+  /** Si el usuario deja de verse, el radio de busqueda crece despacio (anchos de hombro por segundo) hasta followMaxRadius. */
+  followGrowPerSec: 0.8,
+  followMaxRadius: 1.6,
+  followSizeTolerance: 0.3,
+  /** Usuario fijado en la pantalla de posicion: no pierde el control por bajar la mano; solo por desaparecer este tiempo. */
+  stickyLostMs: 8000,
+  /** Visibilidad minima de codo/muneca para medir el brazo (mas baja que minVisibility: con la mano cerca de la cara se oscurecen). */
+  armVisibility: 0.3,
+  /** Mano = muneca prolongada esta fraccion del antebrazo (estable); la punta del indice solo se mezcla si es fiable. */
+  handExtend: 0.3,
+  tipVisibility: 0.7,
+  /** Salto maximo de la mano entre fotogramas, en anchos de hombro por segundo; mas alla se ignora el fotograma (hasta jumpGraceFrames seguidos). */
+  maxHandSpeed: 14,
+  jumpGraceFrames: 6,
+  /** Para adquirir el control con la mano, la persona debe estar en el centro de la imagen (+/- fraccion del ancho). */
+  acquireHalfWidth: 0.32,
+  /** Pantalla "Posicionate": franja central, banda de tamano respecto a la calibracion y tiempo que debe sostenerse. */
+  gate: { holdMs: 1500, centerHalfWidth: 0.16, sizeLow: 0.8, sizeHigh: 1.3, fallbackMin: 0.08, fallbackMax: 0.35 },
   /** Filtro One Euro sobre la posición (esta señal es propia, a diferencia de TD). */
   filter: { minCutoff: 1.2, beta: 0.05, dCutoff: 1.0 },
 } as const;

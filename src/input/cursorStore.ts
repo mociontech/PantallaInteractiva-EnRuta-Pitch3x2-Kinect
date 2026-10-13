@@ -26,6 +26,26 @@ export const link = {
   people: 0,
 };
 
+export type GateState = 'none' | 'closer' | 'back' | 'left' | 'right' | 'ok';
+
+/**
+ * Pantalla "Posicionate" (camara): la pared la activa tras el registro. Mientras esta activa, MediaPipeInput dibuja
+ * la camara en `canvas`, mide si la persona esta centrada y a la distancia correcta y, al sostenerlo, la fija como usuario.
+ */
+export const gate = {
+  active: false,
+  done: false,
+  state: 'none' as GateState,
+  progress: 0,
+  canvas: null as HTMLCanvasElement | null,
+  /** Se incrementa para soltar al usuario fijado (nueva persona / fin de sesion). */
+  release: 0,
+};
+
+export function releaseControl(): void {
+  gate.release++;
+}
+
 type Listener = () => void;
 const trackedListeners = new Set<Listener>();
 const activateListeners = new Set<Listener>();
