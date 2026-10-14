@@ -56,6 +56,14 @@ export const config = {
    */
   allowUnlisted: env.ALLOW_UNLISTED !== 'false',
 
+  /** Base central de las 3 experiencias (asistentes, resultados, ranking). Sin clave, todo sigue funcionando solo con el CSV local. */
+  supabase: {
+    url: env.SUPABASE_URL ?? 'https://faxiulwumtcguukladhq.supabase.co',
+    key: env.SUPABASE_SERVICE_KEY ?? env.SUPABASE_SECRET_KEY ?? env.SUPABASE_KEY ?? '',
+  },
+  /** Máximo de puntos que una experiencia aporta al total (Evius y Supabase). */
+  maxScore: Number(env.EXPERIENCE_MAX_SCORE ?? 100),
+
   evius: {
     /** 'http': entrega real a EVIUS_URL · 'mock': solo registra en consola (pruebas) · 'off': sin configurar (se acumula en el outbox). */
     mode: ((): 'http' | 'mock' | 'off' => {

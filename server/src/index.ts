@@ -9,6 +9,7 @@ import { attendees, isValidCedula, normalizeCedula } from './attendees';
 import { config } from './config';
 import { now, one, run, type Participant } from './db';
 import { outbox } from './delivery';
+import { ranking, supabaseEnabled } from './supabase';
 import {
   adminState, attachWall, clearQueue, detachWall, exportRows, onWallMessage, queueInfo, recoverOnBoot,
   register, skipCurrent,
@@ -122,6 +123,19 @@ app.get('/api/queue/:id', (req, res) => {
   const info = queueInfo(Number(req.params.id));
   if (!info) return res.status(404).json({ ok: false });
   return res.json(info);
+});
+
+/** Ranking global (suma de las 3 experiencias, sin cédulas). Requiere Supabase configurado. */
+app.get('/api/ranking', lookupLimit, async (req, res) => {
+  if (!supabaseEnabled()) {
+    res.status(503).json({ ok: false, error: 'supabase_off' });
+    return;
+  }
+  try {
+    res.json({ ok: true, ranking: await ranking(Number(req.query.limit ?? 20)) });
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 app.get('/api/health', (_req, res) => {

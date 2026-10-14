@@ -1,9 +1,10 @@
 import { config } from './config';
 import { deliverAttendeeToEvius, deliverExperienceToEvius, type EviusAttendee, type EviusResult } from './evius';
 import { Outbox } from './outbox';
+import { saveResult, supabaseEnabled } from './supabase';
 
-/** Los únicos dos destinos del outbox: registrar a la persona y guardar su puntaje. */
-export type EviusDestination = 'eviusAttendee' | 'eviusExperience';
+/** Destinos del outbox: registrar a la persona y guardar su puntaje en Evius, y copiar el resultado a Supabase (ranking). */
+export type EviusDestination = 'eviusAttendee' | 'eviusExperience' | 'supabaseResult';
 
 export interface EviusJobPayload {
   attendee: EviusAttendee;
@@ -15,19 +16,39 @@ export const outbox = new Outbox<EviusJobPayload, EviusDestination>({
   deliverers: {
     eviusAttendee: (p) => deliverAttendeeToEvius(p.attendee),
     eviusExperience: (p, ctx) => deliverExperienceToEvius(p.attendee, p.result, ctx.idempotencyKey),
+    supabaseResult: (p, ctx) =>
+      saveResult({
+        idempotencyKey: ctx.idempotencyKey,
+        cedula: p.attendee.cedula,
+        experience: 'pared',
+        score: p.result.score,
+        completed: p.result.completed,
+        details: {
+          lastStep: p.result.lastStep,
+          gameScore: p.result.gameScore,
+          areas: p.result.areas,
+          solutionsViewed: p.result.solutionsViewed,
+          durationMs: p.result.durationMs,
+          sessionId: p.result.sessionId,
+        },
+        deviceId: p.result.deviceId,
+        playedAt: p.result.endedAt,
+      }),
   },
   // El puntaje se envía solo cuando la persona ya quedó registrada en Evius.
   after: { eviusExperience: ['eviusAttendee'] },
   // Sin EVIUS_URL no hay a dónde enviar: todo se acumula en el archivo y se entrega en cuanto se configure.
-  enabled: () => config.evius.mode !== 'off',
+  enabled: (dest) => (dest === 'supabaseResult' ? supabaseEnabled() : config.evius.mode !== 'off'),
 });
 
 /** Encola el resultado de una sesión. Cédula = identificador único; una sesión = una clave de idempotencia. */
-export function enqueueSession(attendee: EviusAttendee, result: EviusResult): void {
+export function enqueueSession(attendee: EviusAttendee, rawResult: EviusResult): void {
+  // Cada experiencia aporta como máximo `maxScore` puntos al total.
+  const result = { ...rawResult, score: Math.min(config.maxScore, rawResult.score) };
   outbox.enqueue({
     idempotencyKey: `${config.evius.eventId || 'evento'}:${attendee.cedula}:${result.sessionId}:${result.endedAt}`,
     payload: { attendee, result },
-    destinations: ['eviusAttendee', 'eviusExperience'],
+    destinations: supabaseEnabled() ? ['eviusAttendee', 'eviusExperience', 'supabaseResult'] : ['eviusAttendee', 'eviusExperience'],
     meta: { sessionId: result.sessionId, cedula: attendee.cedula },
   });
 }

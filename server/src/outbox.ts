@@ -46,8 +46,8 @@ export interface OutboxOptions<P, D extends string> {
   deliverers: Record<D, (payload: P, ctx: DeliveryContext<P, D>) => Promise<void>>;
   /** Destinos que deben estar entregados (dentro del mismo job) antes de intentar este. */
   after?: Partial<Record<D, D[]>>;
-  /** false: solo persiste, sin intentar entregar (p. ej. Evius sin configurar). */
-  enabled?: () => boolean;
+  /** false: ese destino solo persiste, sin intentar entregar (p. ej. Evius sin configurar). */
+  enabled?: (dest: D) => boolean;
   pollMs?: number;
   baseBackoffMs?: number;
   maxBackoffMs?: number;
@@ -189,14 +189,14 @@ export class Outbox<P, D extends string> {
 
   /** Un ciclo: intenta cada entrega pendiente que ya toca y cuyas dependencias estén cumplidas. */
   async tick(): Promise<void> {
-    if (this.running || !this.o.enabled()) return;
+    if (this.running) return;
     this.running = true;
     try {
       const now = Date.now();
       for (const job of this.jobs.values()) {
         for (const dest of Object.keys(job.deliveries) as D[]) {
           const state = job.deliveries[dest];
-          if (state.status !== 'pending' || state.nextTryAt > now) continue;
+          if (state.status !== 'pending' || state.nextTryAt > now || !this.o.enabled(dest)) continue;
           const deps = this.o.after?.[dest] ?? [];
           if (deps.some((d) => job.deliveries[d] && job.deliveries[d].status !== 'done')) continue;
           await this.deliver(job, dest, state);

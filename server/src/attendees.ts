@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config, type NameOrder } from './config';
 import { parseCsv } from './csv';
 import { isGivenName } from './givenNames';
+import { supabaseEnabled, upsertAttendees } from './supabase';
 
 export interface Attendee {
   cedula: string;
@@ -133,6 +134,21 @@ class AttendeeSource {
     total: 0, skipped: 0, source: 'ninguna', loadedAt: null, error: null,
   };
 
+  all(): Attendee[] {
+    return [...this.map.values()];
+  }
+
+  /** Copia la base a Supabase para que las demás experiencias validen contra la misma lista. No bloquea ni rompe si falla. */
+  async syncToSupabase(): Promise<void> {
+    if (!supabaseEnabled()) return;
+    try {
+      const n = await upsertAttendees(this.all());
+      console.log(`[supabase] ${n} asistentes sincronizados`);
+    } catch (err) {
+      console.warn(`[supabase] no se pudo sincronizar asistentes: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   find(cedula: string): Attendee | null {
     return this.map.get(cedula) ?? null;
   }
@@ -143,6 +159,7 @@ class AttendeeSource {
       const result = this.ingest(text, source);
       this.info = { ...result, loadedAt: new Date().toISOString(), error: null };
       console.log(`[asistentes] ${result.total} cargados de ${source} (${result.skipped} filas omitidas)`);
+      void this.syncToSupabase();
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -162,6 +179,7 @@ class AttendeeSource {
     writeFileSync(config.attendees.csvPath, text, 'utf8');
     this.info = { ...result, loadedAt: new Date().toISOString(), error: null };
     console.log(`[asistentes] ${result.total} cargados desde /admin (${result.skipped} filas omitidas)`);
+    void this.syncToSupabase();
     return result;
   }
 
