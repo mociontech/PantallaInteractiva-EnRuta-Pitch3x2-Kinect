@@ -1,7 +1,8 @@
 import { config } from './config';
 import { deliverAttendeeToEvius, deliverExperienceToEvius, type EviusAttendee, type EviusResult } from './evius';
 import { Outbox } from './outbox';
-import { saveResult, supabaseEnabled } from './supabase';
+import { attendees } from './attendees';
+import { ensureAttendee, saveResult, supabaseEnabled } from './supabase';
 
 /** Destinos del outbox: registrar a la persona y guardar su puntaje en Evius, y copiar el resultado a Supabase (ranking). */
 export type EviusDestination = 'eviusAttendee' | 'eviusExperience' | 'supabaseResult';
@@ -16,8 +17,13 @@ export const outbox = new Outbox<EviusJobPayload, EviusDestination>({
   deliverers: {
     eviusAttendee: (p) => deliverAttendeeToEvius(p.attendee),
     eviusExperience: (p, ctx) => deliverExperienceToEvius(p.attendee, p.result, ctx.idempotencyKey),
-    supabaseResult: (p, ctx) =>
-      saveResult({
+    supabaseResult: async (p, ctx) => {
+      // Una persona registrada en la tablet que no estaba en el Sheet queda como asistente nuevo en la base compartida.
+      await ensureAttendee(
+        { cedula: p.attendee.cedula, nombre: p.attendee.nombre, cargo: p.attendee.cargo },
+        attendees.find(p.attendee.cedula) ? 'base' : 'nuevo',
+      );
+      await saveResult({
         idempotencyKey: ctx.idempotencyKey,
         cedula: p.attendee.cedula,
         experience: 'pared',
@@ -34,7 +40,8 @@ export const outbox = new Outbox<EviusJobPayload, EviusDestination>({
         deviceId: p.result.deviceId,
         playedAt: p.result.endedAt,
         eviusSent: true,
-      }),
+      });
+    },
   },
   // El puntaje se envía solo cuando la persona ya quedó registrada en Evius.
   after: { eviusExperience: ['eviusAttendee'] },

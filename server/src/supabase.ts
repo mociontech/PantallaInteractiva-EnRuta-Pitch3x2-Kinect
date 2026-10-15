@@ -42,6 +42,15 @@ export async function upsertAttendees(list: SupabaseAttendee[]): Promise<number>
   return list.length;
 }
 
+/** Asegura que la persona exista como asistente. Quien no estaba en la base queda como 'nuevo'; nunca pisa a uno existente. */
+export async function ensureAttendee(a: SupabaseAttendee, origen: 'base' | 'nuevo'): Promise<void> {
+  await rest('attendees?on_conflict=cedula', {
+    method: 'POST',
+    body: { cedula: a.cedula, nombre: a.nombre, cargo: a.cargo, origen },
+    prefer: 'resolution=ignore-duplicates,return=minimal',
+  });
+}
+
 export interface SupabaseResult {
   idempotencyKey: string;
   cedula: string;
