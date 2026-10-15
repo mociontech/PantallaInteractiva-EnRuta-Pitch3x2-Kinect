@@ -36,12 +36,17 @@ export const INPUT = {
   dwellSource: 'web' as 'web' | 'td',
 } as const;
 
+/**
+ * Puntaje de la pared sobre 100 (igual que las otras experiencias). Recorrido: 40 como máximo (6 + 2×5 + 6 + 6×3);
+ * juego: hasta 60 (15 aciertos netos × 4). Un 100 exige haber visto todo y llenar la barra del juego.
+ */
 export const SCORE = {
-  station1: 20,
-  area: 20,
-  station3: 20,
-  solutionCard: 10,
-  gameItem: 25,
+  station1: 6,
+  area: 5,
+  station3: 6,
+  solutionCard: 3,
+  gameItem: 4,
+  max: 100,
 } as const;
 
 export const GAME = {
@@ -50,13 +55,13 @@ export const GAME = {
   itemLifeMs: 3000,
   spawnEveryMs: 700,
   startDelayMs: 1000,
-  /** Puntos de juego para llenar la barra de la planta. */
-  targetPoints: 250,
+  /** Puntos de juego para llenar la barra de la planta (y máximo que aporta el juego al total). */
+  targetPoints: 60,
   endHoldMs: 2500,
   /** Probabilidad de que un ítem nuevo sea un obstáculo ("lo que no pertenece a tu ruta"). [CONFIRMAR] */
   obstacleChance: 0.35,
   /** Puntos que se pierden al tocar un obstáculo (el puntaje del juego no baja de 0). [CONFIRMAR] */
-  obstaclePenalty: 25,
+  obstaclePenalty: 4,
 } as const;
 
 /** [CONFIRMAR] URL del QR final; puede incluir el id de sesión. */

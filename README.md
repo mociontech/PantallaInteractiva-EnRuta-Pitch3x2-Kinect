@@ -117,6 +117,12 @@ curl -X POST localhost:4010/__config -d '{"fail":true}'            # simula Eviu
 curl -X POST localhost:4010/__config -d '{"noExperiences":true}'   # obliga al fallback a /activities
 ```
 
+## Puntaje de la pared (sobre 100)
+
+El puntaje va de 0 a 100, igual que las otras experiencias: **hasta 40 por el recorrido** (Estación 1: 6 · cada área elegida: 5, máximo 2 · Estación 3: 6 ·
+cada solución vista: 3, máximo 6) y **hasta 60 por el juego** (cada acierto suma 4, cada obstáculo resta 4; la barra se llena con 60). Un 100 exige haber visto
+todo y llenar la barra; solo completar el recorrido da 40. Los valores están en `SCORE`, `GAME.targetPoints` y `GAME.obstaclePenalty` (`src/config/experience.ts`).
+
 ## Una sola participación por persona
 
 Cada persona puede participar **una vez por experiencia** (pared, tríptico, Insta Face), para que sea parejo. Se aplica en tres niveles:

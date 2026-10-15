@@ -1,6 +1,6 @@
 import type { AssignedParticipant } from '../../shared/protocol';
 import type { AreaId, SolutionId } from '../config/content';
-import { SCORE } from '../config/experience';
+import { GAME, SCORE } from '../config/experience';
 
 export type Screen = 'idle' | 'instructions' | 'calibration' | 'home' | 's1' | 's2' | 's3' | 's4' | 's5' | 'result';
 
@@ -86,7 +86,7 @@ export function computeScore(s: SessionState): number {
     s.areas.length * SCORE.area +
     (has(3) ? SCORE.station3 : 0) +
     s.solutionsViewed.length * SCORE.solutionCard +
-    s.gameScore
+    Math.min(s.gameScore, GAME.targetPoints)
   );
 }
 
