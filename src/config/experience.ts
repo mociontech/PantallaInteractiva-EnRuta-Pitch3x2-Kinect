@@ -131,6 +131,8 @@ export const MEDIAPIPE = {
   minPoseConfidence: 0.6,
   /** Alcance máximo creíble de la mano desde el hombro derecho (anchos de hombro). Más lejos = el modelo agarró el brazo de OTRA persona. */
   maxArmReach: 3.2,
+  /** El límite real es el mayor entre maxArmReach y este factor × la esquina más lejana de la zona calibrada (que puede ser grande). */
+  armReachMargin: 1.5,
   /** Si los fotogramas inválidos duran más de esto, el cursor deja de mostrarse en vez de quedarse congelado. */
   jumpDropMs: 1200,
   /** Usuario fijado en la pantalla de posicion: no pierde el control por bajar la mano; solo por desaparecer este tiempo. */
@@ -148,7 +150,10 @@ export const MEDIAPIPE = {
   /** Pantalla "Posicionate": franja central, banda de tamano respecto a la calibracion y tiempo que debe sostenerse. */
   gate: { holdMs: 1500, centerHalfWidth: 0.16, searchHalfWidth: 0.4, sizeLow: 0.8, sizeHigh: 1.3, fallbackMin: 0.08, fallbackMax: 0.35 },
   /** Filtro One Euro sobre la posición (esta señal es propia, a diferencia de TD). */
-  filter: { minCutoff: 1.2, beta: 0.05, dCutoff: 1.0 },
+  // El cursor va en unidades 0..1 por segundo: beta debe ser alto (≈3) para que el filtro suelte el cursor al mover rápido; con 0,05 era un pasabajos fijo de ~130 ms de retardo.
+  filter: { minCutoff: 1.5, beta: 3.0, dCutoff: 1.0 },
+  /** FPS que se piden a la cámara (en poca luz muchas webcams bajan a 15 fps y el cursor se ve a saltos). */
+  cameraFps: 30,
 } as const;
 
 /** Recorrido de sensibilidad en las instrucciones: puntos (px de Stage) que se visitan uno a uno. */

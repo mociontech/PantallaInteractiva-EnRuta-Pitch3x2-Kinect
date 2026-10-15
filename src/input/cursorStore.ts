@@ -24,6 +24,9 @@ export const link = {
   /** Cámara: estado del bloqueo de usuario y personas detectadas (debug). */
   lock: 'none' as 'none' | 'candidate' | 'locked',
   people: 0,
+  /** Cámara: velocidad real del modelo (fotogramas procesados por segundo y ms por fotograma). */
+  detectFps: 0,
+  detectMs: 0,
 };
 
 export type GateState = 'none' | 'closer' | 'back' | 'left' | 'right' | 'ok';

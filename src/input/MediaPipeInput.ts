@@ -82,6 +82,8 @@ export class MediaPipeInput implements InputProvider {
   private lastRaw: { u: number; v: number; t: number } | null = null;
   private jumpRejects = 0;
   private rejectSince: number | null = null;
+  private frames = 0;
+  private fpsSince = 0;
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
@@ -119,7 +121,12 @@ export class MediaPipeInput implements InputProvider {
         minTrackingConfidence: MEDIAPIPE.minPoseConfidence,
       });
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: MEDIAPIPE.cameraWidth, height: MEDIAPIPE.cameraHeight, facingMode: 'user' },
+        video: {
+          width: MEDIAPIPE.cameraWidth,
+          height: MEDIAPIPE.cameraHeight,
+          frameRate: { ideal: MEDIAPIPE.cameraFps, min: 24 },
+          facingMode: 'user',
+        },
         audio: false,
       });
       if (this.stopped) {
@@ -268,6 +275,12 @@ export class MediaPipeInput implements InputProvider {
     return null;
   }
 
+  /** Alcance máximo creíble de la mano: nunca menor que la esquina más lejana de la zona calibrada (con margen). */
+  private armReachLimit(): number {
+    const corner = Math.hypot(Math.abs(calibration.offsetX) + calibration.reachWidth / 2, Math.abs(calibration.offsetY) + calibration.reachHeight / 2);
+    return Math.max(MEDIAPIPE.maxArmReach, corner * MEDIAPIPE.armReachMargin);
+  }
+
   /** Rango de ancho de hombros aceptado en "Posiciónate": respecto a la calibración, o uno genérico si no hay. */
   private sizeBand(): [number, number] {
     const ref = calibration.shoulderRef;
@@ -319,6 +332,14 @@ export class MediaPipeInput implements InputProvider {
     this.lastVideoTime = v.currentTime;
     const now = performance.now();
     const result = lm.detectForVideo(v, now);
+    const spent = performance.now() - now;
+    link.detectMs = link.detectMs === 0 ? spent : link.detectMs * 0.9 + spent * 0.1;
+    this.frames++;
+    if (now - this.fpsSince >= 1000) {
+      link.detectFps = Math.round((this.frames * 1000) / (now - this.fpsSince));
+      this.frames = 0;
+      this.fpsSince = now;
+    }
     const aspect = v.videoHeight / v.videoWidth;
 
     if (gate.release !== this.releaseSeen) {
@@ -346,7 +367,7 @@ export class MediaPipeInput implements InputProvider {
       const dt = last ? Math.max(0.016, (now - last.t) / 1000) : 1;
       const jump = last ? Math.hypot(u - last.u, vv - last.v) : 0;
       // Un punto demasiado lejos del hombro no puede ser la mano de esta persona: el modelo tomó el brazo de alguien que pasa.
-      const farFromBody = Math.hypot(u, vv) > MEDIAPIPE.maxArmReach;
+      const farFromBody = Math.hypot(u, vv) > this.armReachLimit();
       const tooFast = last !== null && this.tracked && jump > MEDIAPIPE.maxHandSpeed * dt && this.jumpRejects < MEDIAPIPE.jumpGraceFrames;
       if (farFromBody || tooFast) {
         this.jumpRejects++;
