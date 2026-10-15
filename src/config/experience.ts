@@ -151,7 +151,15 @@ export const MEDIAPIPE = {
   gate: { holdMs: 1500, centerHalfWidth: 0.16, searchHalfWidth: 0.4, sizeLow: 0.8, sizeHigh: 1.3, fallbackMin: 0.08, fallbackMax: 0.35 },
   /** Filtro One Euro sobre la posición (esta señal es propia, a diferencia de TD). */
   // El cursor va en unidades 0..1 por segundo: beta debe ser alto (≈3) para que el filtro suelte el cursor al mover rápido; con 0,05 era un pasabajos fijo de ~130 ms de retardo.
-  filter: { minCutoff: 1.5, beta: 3.0, dCutoff: 1.0 },
+  filter: { minCutoff: 0.7, beta: 12.0, dCutoff: 1.0 },
+  /**
+   * Estabilidad del cursor: (1) el hombro y su ancho (el "marco" desde el que se mide la mano) se suavizan con este corte en Hz,
+   * porque su temblor se sumaba al de la mano; (2) zona muerta en px de Stage: movimientos menores no mueven el cursor
+   * (quita el temblor sin retrasar los movimientos reales); (3) margen extra en px para NO perder el objetivo si la mano tiembla encima.
+   */
+  referenceCutoffHz: 0.8,
+  deadzonePx: 7,
+  targetExitMarginPx: 30,
   /** FPS que se piden a la cámara (en poca luz muchas webcams bajan a 15 fps y el cursor se ve a saltos). */
   cameraFps: 30,
 } as const;

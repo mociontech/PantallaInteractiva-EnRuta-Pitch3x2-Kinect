@@ -1,4 +1,5 @@
-import { INPUT, STAGE, TIMING } from '../config/experience';
+import { INPUT, MEDIAPIPE, STAGE, TIMING } from '../config/experience';
+import { isDebugMode } from '../config/mode';
 import { cursor, subscribeActivate } from '../input/cursorStore';
 
 export type TargetMode = 'dwell' | 'contact';
@@ -51,6 +52,10 @@ export class DwellEngine {
   private stageEl: HTMLElement | null = null;
   private unsubActivate: (() => void) | null = null;
   private bestId: string | null = null;
+  /** Rectángulos en caché: medirlos en cada fotograma forzaba un cálculo de layout 60+ veces por segundo. Se refrescan cada pocos ms. */
+  private rects = new Map<string, StageRect | null>();
+  private rectsAt = -1000;
+  private stageRect: DOMRect | null = null;
 
   /** Rectángulos actuales, para el overlay de debug. */
   debugRects: Array<StageRect & { id: string; hover: boolean; disabled: boolean }> = [];
@@ -84,6 +89,7 @@ export class DwellEngine {
 
   unregister(id: string): void {
     this.regs.delete(id);
+    this.rects.delete(id);
   }
 
   start(): void {
@@ -118,8 +124,8 @@ export class DwellEngine {
     return { x: (r.left - sr.left) / k, y: (r.top - sr.top) / k, w: r.width / k, h: r.height / k };
   }
 
-  private isHit(rect: StageRect, reg: Registration): boolean {
-    const p = reg.opts.padding;
+  private isHit(rect: StageRect, reg: Registration, extra = 0): boolean {
+    const p = reg.opts.padding + extra;
     if (reg.opts.shape === 'circle') {
       const cx = rect.x + rect.w / 2;
       const cy = rect.y + rect.h / 2;
@@ -141,18 +147,29 @@ export class DwellEngine {
   private tick(now: number): void {
     const dt = Math.min(100, now - this.last);
     this.last = now;
-    const sr = this.stageEl?.getBoundingClientRect();
+    const refresh = now - this.rectsAt > 100;
+    if (refresh) {
+      this.stageRect = this.stageEl?.getBoundingClientRect() ?? null;
+      this.rectsAt = now;
+    }
+    const sr = this.stageRect;
     if (!sr || sr.width === 0) return;
 
     const active = cursor.tracked && now >= this.blockedUntil;
     const hits: Array<{ reg: Registration; dist: number }> = [];
+    const debug = isDebugMode();
     const dbg: typeof this.debugRects = [];
 
     for (const reg of this.regs.values()) {
-      const rect = this.rectOf(reg, sr);
+      let rect = refresh ? undefined : this.rects.get(reg.id);
+      if (rect === undefined) {
+        rect = this.rectOf(reg, sr);
+        this.rects.set(reg.id, rect);
+      }
       if (!rect) continue;
-      const hit = active && !reg.opts.disabled && this.isHit(rect, reg);
-      dbg.push({ ...rect, id: reg.id, hover: hit, disabled: reg.opts.disabled });
+      // Histéresis: una vez encima de un objetivo se sigue "encima" aunque la mano tiemble un poco hacia afuera.
+      const hit = active && !reg.opts.disabled && this.isHit(rect, reg, reg.view.hover ? MEDIAPIPE.targetExitMarginPx : 0);
+      if (debug) dbg.push({ ...rect, id: reg.id, hover: hit, disabled: reg.opts.disabled });
       if (hit) {
         const dist = Math.hypot(cursor.x - (rect.x + rect.w / 2), cursor.y - (rect.y + rect.h / 2));
         hits.push({ reg, dist });
@@ -163,7 +180,7 @@ export class DwellEngine {
         this.setView(reg, false, 0);
       }
     }
-    this.debugRects = dbg;
+    if (debug) this.debugRects = dbg;
 
     // Objetivos de contacto: activan al entrar, todos independientes.
     // Objetivos de dwell: solo el más cercano al cursor.

@@ -151,6 +151,12 @@ La tablet muestra la autorización de tratamiento de datos antes de registrar a 
 el resto se ignora. Se libera si baja la mano 4 s o desaparece 1,5 s. Calibración: tecla `C` en la pantalla de inicio de la pared (`Esc` para salir);
 detalles y valores ajustables en `MEDIAPIPE` (`src/config/experience.ts`). Con `?debug=1` aparece la vista de la cámara con todas las personas detectadas.
 
+### Rendimiento y estabilidad del cursor
+
+- El modelo de pose corre en un **worker** (`public/mediapipe/pose-worker.js`), fuera del hilo de la interfaz: así las animaciones no se traban. Si el worker falla, vuelve solo al hilo principal. `?worker=0` fuerza el modo anterior para comparar. Con `?debug=1` se ve "IA ## fps (## ms)".
+- Estabilidad (`MEDIAPIPE` en `src/config/experience.ts`): filtro One Euro `filter` (reposo más suave, sin retardo al mover), `referenceCutoffHz` (suaviza el hombro de referencia), `deadzonePx` (zona muerta anti-temblor) y `targetExitMarginPx` (no pierde el botón si la mano tiembla encima).
+- Si se actualiza `@mediapipe/tasks-vision`, copiar de nuevo `node_modules/@mediapipe/tasks-vision/vision_bundle.js` a `public/mediapipe/`.
+
 ## Pruebas
 
 ```bash

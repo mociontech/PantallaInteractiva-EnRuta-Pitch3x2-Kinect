@@ -4,6 +4,7 @@ import { calibration, rawHand, setCalibration } from './calibration';
 import type { InputProvider } from './InputProvider';
 import { gate, link, pushSample, type GateState } from './cursorStore';
 import { OneEuro } from './oneEuro';
+import { STAGE } from '../config/experience';
 
 // Índices de MediaPipe Pose (derecha = derecha anatómica de la persona).
 const R_SHOULDER = 12;
@@ -70,6 +71,11 @@ export class MediaPipeInput implements InputProvider {
   private fy = new OneEuro(MEDIAPIPE.filter.minCutoff, MEDIAPIPE.filter.beta, MEDIAPIPE.filter.dCutoff);
   private lastX = 0.5;
   private lastY = 0.5;
+  /** Posición que realmente se entrega al cursor (tras la zona muerta). */
+  private outX = 0.5;
+  private outY = 0.5;
+  /** Marco de referencia suavizado: hombro derecho y ancho de hombros. */
+  private ref: { x: number; y: number; S: number; t: number } | null = null;
   private tracked = false;
   /** Vista de la cámara en una esquina: solo para depuración (?debug=1 o ?preview=1). En producción solo se ve en "Posiciónate". */
   private showPreview = ((q: URLSearchParams) => q.get('preview') === '1' || q.get('debug') === '1')(new URLSearchParams(window.location.search));
@@ -84,6 +90,10 @@ export class MediaPipeInput implements InputProvider {
   private rejectSince: number | null = null;
   private frames = 0;
   private fpsSince = 0;
+  /** Inferencia en un worker (fuera del hilo de la interfaz). ?worker=0 fuerza el modo anterior (hilo principal) para comparar. */
+  private useWorker = new URLSearchParams(window.location.search).get('worker') !== '0';
+  private worker: Worker | null = null;
+  private inflight = false;
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
@@ -111,24 +121,8 @@ export class MediaPipeInput implements InputProvider {
     link.status = 'connecting';
     this.stopped = false;
     try {
-      const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE.wasmPath);
-      this.landmarker = await PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: MEDIAPIPE.modelPath, delegate: 'GPU' },
-        runningMode: 'VIDEO',
-        numPoses: MEDIAPIPE.numPoses,
-        minPoseDetectionConfidence: MEDIAPIPE.minPoseConfidence,
-        minPosePresenceConfidence: MEDIAPIPE.minPoseConfidence,
-        minTrackingConfidence: MEDIAPIPE.minPoseConfidence,
-      });
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: MEDIAPIPE.cameraWidth,
-          height: MEDIAPIPE.cameraHeight,
-          frameRate: { ideal: MEDIAPIPE.cameraFps, min: 24 },
-          facingMode: 'user',
-        },
-        audio: false,
-      });
+      await this.initInference();
+      this.stream = await this.openCamera();
       if (this.stopped) {
         this.stop();
         return;
@@ -149,11 +143,108 @@ export class MediaPipeInput implements InputProvider {
     }
   }
 
+  /** Pide la cámara con lo ideal y, si el dispositivo no lo da (OverconstrainedError), baja las exigencias en vez de quedarse sin cámara. */
+  private async openCamera(): Promise<MediaStream> {
+    const attempts: MediaTrackConstraints[] = [
+      { width: { ideal: MEDIAPIPE.cameraWidth }, height: { ideal: MEDIAPIPE.cameraHeight }, frameRate: { ideal: MEDIAPIPE.cameraFps }, facingMode: 'user' },
+      { width: { ideal: MEDIAPIPE.cameraWidth }, height: { ideal: MEDIAPIPE.cameraHeight } },
+      {},
+    ];
+    let lastErr: unknown;
+    for (const video of attempts) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ video, audio: false });
+      } catch (err) {
+        lastErr = err;
+        if (!(err instanceof DOMException) || err.name !== 'OverconstrainedError') throw err;
+      }
+    }
+    throw lastErr;
+  }
+
+  /** Worker si se puede; si no inicia o falla, el modelo corre en el hilo principal como antes. */
+  private async initInference(): Promise<void> {
+    if (this.useWorker && typeof Worker !== 'undefined' && typeof createImageBitmap === 'function') {
+      try {
+        await this.startWorker();
+        return;
+      } catch (err) {
+        console.warn('[MediaPipeInput] el worker no está disponible; se usa el hilo principal.', err);
+        this.dropWorker();
+      }
+    }
+    await this.startMainLandmarker();
+  }
+
+  private async startMainLandmarker(): Promise<void> {
+    const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE.wasmPath);
+    this.landmarker = await PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: MEDIAPIPE.modelPath, delegate: 'GPU' },
+      runningMode: 'VIDEO',
+      numPoses: MEDIAPIPE.numPoses,
+      minPoseDetectionConfidence: MEDIAPIPE.minPoseConfidence,
+      minPosePresenceConfidence: MEDIAPIPE.minPoseConfidence,
+      minTrackingConfidence: MEDIAPIPE.minPoseConfidence,
+    });
+  }
+
+  private startWorker(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const w = new Worker('/mediapipe/pose-worker.js');
+      this.worker = w;
+      const timer = window.setTimeout(() => reject(new Error('el worker no respondió a tiempo')), 30_000);
+      w.onerror = (ev) => {
+        window.clearTimeout(timer);
+        if (this.worker === w && this.video) {
+          // Falló después de arrancar: se vuelve al hilo principal sin cortar la experiencia.
+          console.warn('[MediaPipeInput] error del worker; se pasa al hilo principal.', ev.message);
+          this.dropWorker();
+          void this.startMainLandmarker().catch((e) => console.error('[MediaPipeInput]', e));
+        } else {
+          reject(new Error(ev.message || 'error del worker'));
+        }
+      };
+      w.onmessage = (ev: MessageEvent<{ t: string; ts?: number; ms?: number; message?: string; landmarks?: NormalizedLandmark[][] }>) => {
+        const m = ev.data;
+        if (m.t === 'ready') {
+          window.clearTimeout(timer);
+          resolve();
+        } else if (m.t === 'result') {
+          this.inflight = false;
+          this.onResult(m.landmarks ?? [], m.ms ?? 0);
+        } else if (m.t === 'error') {
+          window.clearTimeout(timer);
+          if (!this.video) {
+            reject(new Error(m.message));
+          } else {
+            console.warn('[MediaPipeInput] error del worker; se pasa al hilo principal.', m.message);
+            this.dropWorker();
+            void this.startMainLandmarker().catch((e) => console.error('[MediaPipeInput]', e));
+          }
+        }
+      };
+      w.postMessage({
+        t: 'init',
+        wasmPath: new URL(MEDIAPIPE.wasmPath, window.location.href).toString(),
+        modelPath: new URL(MEDIAPIPE.modelPath, window.location.href).toString(),
+        numPoses: MEDIAPIPE.numPoses,
+        confidence: MEDIAPIPE.minPoseConfidence,
+      });
+    });
+  }
+
+  private dropWorker(): void {
+    this.worker?.terminate();
+    this.worker = null;
+    this.inflight = false;
+  }
+
   stop(): void {
     this.stopped = true;
     cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this.onKey);
     this.stream?.getTracks().forEach((t) => t.stop());
+    this.dropWorker();
     this.landmarker?.close();
     this.preview?.remove();
     this.stream = null;
@@ -275,6 +366,22 @@ export class MediaPipeInput implements InputProvider {
     return null;
   }
 
+  /** Suaviza el hombro y su ancho (paso bajo): el temblor de este marco de referencia se sumaba al de la mano. */
+  private smoothRef(rs: NormalizedLandmark, S: number, now: number): { x: number; y: number; S: number } {
+    const r = this.ref;
+    if (!r) {
+      this.ref = { x: rs.x, y: rs.y, S, t: now };
+      return this.ref;
+    }
+    const dt = Math.max(0.001, (now - r.t) / 1000);
+    const a = 1 - Math.exp(-2 * Math.PI * MEDIAPIPE.referenceCutoffHz * dt);
+    r.x += (rs.x - r.x) * a;
+    r.y += (rs.y - r.y) * a;
+    r.S += (S - r.S) * a;
+    r.t = now;
+    return r;
+  }
+
   /** Alcance máximo creíble de la mano: nunca menor que la esquina más lejana de la zona calibrada (con margen). */
   private armReachLimit(): number {
     const corner = Math.hypot(Math.abs(calibration.offsetX) + calibration.reachWidth / 2, Math.abs(calibration.offsetY) + calibration.reachHeight / 2);
@@ -327,12 +434,36 @@ export class MediaPipeInput implements InputProvider {
     if (this.stopped) return;
     this.raf = requestAnimationFrame(this.loop);
     const v = this.video;
+    if (!v || v.readyState < 2 || v.currentTime === this.lastVideoTime) return;
+
+    if (this.worker) {
+      // Un fotograma a la vez: si el worker sigue ocupado se espera (no se acumula cola, así la latencia no crece).
+      if (this.inflight) return;
+      this.lastVideoTime = v.currentTime;
+      this.inflight = true;
+      const w = this.worker;
+      const ts = performance.now();
+      createImageBitmap(v)
+        .then((bitmap) => w.postMessage({ t: 'frame', bitmap, ts }, [bitmap]))
+        .catch(() => {
+          this.inflight = false;
+        });
+      return;
+    }
+
     const lm = this.landmarker;
-    if (!v || !lm || v.readyState < 2 || v.currentTime === this.lastVideoTime) return;
+    if (!lm) return;
     this.lastVideoTime = v.currentTime;
+    const t0 = performance.now();
+    const result = lm.detectForVideo(v, t0);
+    this.onResult(result.landmarks, performance.now() - t0);
+  };
+
+  /** Procesa un resultado del modelo (venga del worker o del hilo principal): selección de usuario, mano, filtro y cursor. */
+  private onResult(landmarks: NormalizedLandmark[][], spent: number): void {
+    const v = this.video;
+    if (this.stopped || !v) return;
     const now = performance.now();
-    const result = lm.detectForVideo(v, now);
-    const spent = performance.now() - now;
     link.detectMs = link.detectMs === 0 ? spent : link.detectMs * 0.9 + spent * 0.1;
     this.frames++;
     if (now - this.fpsSince >= 1000) {
@@ -348,7 +479,7 @@ export class MediaPipeInput implements InputProvider {
       this.cand = null;
       this.gateHold = null;
     }
-    const people = this.measure(result.landmarks, aspect);
+    const people = this.measure(landmarks, aspect);
     this.runGate(people, now);
     const user = this.select(people, now);
     link.people = people.length;
@@ -360,8 +491,9 @@ export class MediaPipeInput implements InputProvider {
       const rs = lms[R_SHOULDER] as NormalizedLandmark;
       const h = this.handPoint(lms, aspect);
       // Espejo en X; Y escalada a "unidades de ancho"; ambas en anchos de hombro desde el hombro derecho.
-      const u = (1 - h.x - (1 - rs.x)) / S;
-      const vv = ((h.y - rs.y) * aspect) / S;
+      const ref = this.smoothRef(rs, S, now);
+      const u = (ref.x - h.x) / ref.S;
+      const vv = ((h.y - ref.y) * aspect) / ref.S;
       // Con la mano cerca de la cara el modelo a veces salta: un salto imposible entre fotogramas se ignora.
       const last = this.lastRaw;
       const dt = last ? Math.max(0.016, (now - last.t) / 1000) : 1;
@@ -391,6 +523,7 @@ export class MediaPipeInput implements InputProvider {
       rawHand.valid = false;
       this.lastRaw = null;
       this.rejectSince = null;
+      this.ref = null;
     }
 
     if (hand) {
@@ -399,8 +532,24 @@ export class MediaPipeInput implements InputProvider {
         this.fx.reset();
         this.fy.reset();
       }
-      this.lastX = this.fx.filter(hand.x, now);
-      this.lastY = this.fy.filter(hand.y, now);
+      const fx = this.fx.filter(hand.x, now);
+      const fy = this.fy.filter(hand.y, now);
+      if (!this.tracked) {
+        this.outX = fx;
+        this.outY = fy;
+      } else {
+        // Zona muerta suave: el cursor solo se mueve la parte del desplazamiento que supera el radio (sin retraso en movimientos reales).
+        const dx = (fx - this.outX) * STAGE.width;
+        const dy = (fy - this.outY) * STAGE.height;
+        const d = Math.hypot(dx, dy);
+        if (d > MEDIAPIPE.deadzonePx) {
+          const k = (d - MEDIAPIPE.deadzonePx) / d;
+          this.outX += (dx * k) / STAGE.width;
+          this.outY += (dy * k) / STAGE.height;
+        }
+      }
+      this.lastX = this.outX;
+      this.lastY = this.outY;
       this.tracked = true;
     } else if (this.tracked && now - this.lastSeen > MEDIAPIPE.lostGraceMs) {
       this.tracked = false;
@@ -409,7 +558,7 @@ export class MediaPipeInput implements InputProvider {
 
     const surface = gate.canvas ?? this.preview;
     if (surface) this.drawPreview(surface, v, people, user);
-  };
+  }
 
   /**
    * Punto de la mano: la muñeca prolongada hacia adelante por el antebrazo (estable: el modelo ve bien codo y muñeca incluso con
@@ -423,10 +572,14 @@ export class MediaPipeInput implements InputProvider {
     const k = MEDIAPIPE.handExtend;
     const ext = { x: wr.x + (wr.x - el.x) * k, y: wr.y + (wr.y - el.y) * k };
     const tip = lms[R_INDEX];
-    if (visible(tip, MEDIAPIPE.tipVisibility)) {
+    if (tip && (tip.visibility ?? 1) > MEDIAPIPE.tipVisibility - 0.1) {
+      // Mezcla CONTINUA (antes era un interruptor visible/no visible y el cursor saltaba al conmutar).
       const fore = Math.hypot(wr.x - el.x, (wr.y - el.y) * aspect);
       const off = Math.hypot(tip.x - ext.x, (tip.y - ext.y) * aspect);
-      if (off <= fore * 0.8) return { x: (ext.x + tip.x) / 2, y: (ext.y + tip.y) / 2 };
+      const coherent = Math.min(1, Math.max(0, 1 - (off / Math.max(fore, 1e-6) - 0.5) / 0.5));
+      const vis = Math.min(1, Math.max(0, ((tip.visibility ?? 1) - (MEDIAPIPE.tipVisibility - 0.1)) / 0.3));
+      const w = 0.5 * coherent * vis;
+      return { x: ext.x * (1 - w) + tip.x * w, y: ext.y * (1 - w) + tip.y * w };
     }
     return ext;
   }
