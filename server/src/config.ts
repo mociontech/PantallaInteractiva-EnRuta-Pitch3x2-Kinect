@@ -78,6 +78,12 @@ export const config = {
     /** Nombre de esta experiencia tal como debe verse en Evius. */
     experienceName: env.EXPERIENCE_NAME ?? 'Pared interactiva EnRuta',
     emailDomain: env.EVIUS_EMAIL_DOMAIN ?? 'enruta.local',
+    /** Las otras experiencias del evento (el barredor reenvía a Evius lo que quede pendiente en Supabase). */
+    experiences: {
+      pared: { id: env.EVIUS_EXPERIENCE_ID ?? '', name: env.EXPERIENCE_NAME ?? 'Pared interactiva EnRuta' },
+      triptico: { id: env.EVIUS_EXPERIENCE_ID_TRIPTICO ?? '4a694bf9-476d-48e6-8a29-a691b4d9a0ca', name: 'Tríptico de pantallas EnRuta' },
+      insta: { id: env.EVIUS_EXPERIENCE_ID_INSTA ?? '08a5cba0-2075-458a-bc09-c10a2a8a58a7', name: 'Insta Face EnRuta' },
+    },
     /** Archivo JSONL del outbox: se escribe ANTES de intentar el envío y es también el historial/respaldo de lo jugado. */
     outboxPath: env.OUTBOX_PATH ?? 'server/data/outbox.jsonl',
   },

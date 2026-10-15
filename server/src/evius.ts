@@ -38,14 +38,20 @@ interface BatchResponse {
 }
 
 /** Envía un lote. Lanza si HTTP != 2xx o si el cuerpo reporta registros fallidos (la API responde 200 con errores). */
-async function postBatch(route: string, extra: Record<string, unknown>, records: unknown[], idempotencyKey: string): Promise<void> {
-  const { url, token, eventId, experienceName } = config.evius;
+async function postBatch(
+  route: string,
+  extra: Record<string, unknown>,
+  records: unknown[],
+  idempotencyKey: string,
+  source: string = config.evius.experienceName,
+): Promise<void> {
+  const { url, token, eventId } = config.evius;
   const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${url.replace(/\/$/, '')}${route}`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ eventId, source: experienceName, sentAt: new Date().toISOString(), ...extra, records }),
+    body: JSON.stringify({ eventId, source, sentAt: new Date().toISOString(), ...extra, records }),
     signal: AbortSignal.timeout(15_000),
   });
   const text = await res.text();
@@ -67,18 +73,25 @@ async function postBatch(route: string, extra: Record<string, unknown>, records:
 const emailOf = (a: EviusAttendee): string => `${a.cedula}@${config.evius.emailDomain}`;
 
 /** Registra a la persona en el evento (Evius deduplica por cédula + eventId). */
-export async function deliverAttendeeToEvius(a: EviusAttendee): Promise<void> {
+export async function deliverAttendeeToEvius(a: EviusAttendee, source?: string): Promise<void> {
   const { mode, eventId } = config.evius;
   if (mode === 'mock') {
     console.log('[evius:mock] attendee', JSON.stringify(a));
     return;
   }
-  await postBatch('/attendees', {}, [{ email: emailOf(a), fullName: a.nombre, cedula: a.cedula, cargo: a.cargo }], `att:${eventId}:${a.cedula}`);
+  await postBatch('/attendees', {}, [{ email: emailOf(a), fullName: a.nombre, cedula: a.cedula, cargo: a.cargo }], `att:${eventId}:${a.cedula}`, source);
 }
 
 /** Guarda el puntaje. Si /experiences no existe en el evento (404/405/501) cae a /activities con el puntaje en `longDescription`. */
-export async function deliverExperienceToEvius(a: EviusAttendee, result: EviusResult, idempotencyKey: string): Promise<void> {
-  const { mode, experienceId, experienceName } = config.evius;
+export async function deliverExperienceToEvius(
+  a: EviusAttendee,
+  result: EviusResult,
+  idempotencyKey: string,
+  exp: { id: string; name: string } = { id: config.evius.experienceId, name: config.evius.experienceName },
+): Promise<void> {
+  const { mode } = config.evius;
+  const experienceId = exp.id;
+  const experienceName = exp.name;
   if (mode === 'mock') {
     console.log('[evius:mock] experience', JSON.stringify({ cedula: a.cedula, ...result }));
     return;
@@ -102,6 +115,7 @@ export async function deliverExperienceToEvius(a: EviusAttendee, result: EviusRe
       { experienceId },
       [{ email: emailOf(a), fullName: a.nombre, cedula: a.cedula, cargo: a.cargo, play_timestamp: result.endedAt, ...details, idempotencyKey }],
       idempotencyKey,
+      experienceName,
     );
   } catch (err) {
     if (!/HTTP (404|405|501)/.test(err instanceof Error ? err.message : '')) throw err;
@@ -118,6 +132,7 @@ export async function deliverExperienceToEvius(a: EviusAttendee, result: EviusRe
         },
       ],
       idempotencyKey,
+      experienceName,
     );
   }
 }

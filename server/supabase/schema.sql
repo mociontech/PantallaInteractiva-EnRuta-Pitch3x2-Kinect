@@ -27,9 +27,11 @@ create table if not exists public.results (
   details          jsonb not null default '{}'::jsonb,   -- áreas, aciertos, duración, etc.
   device_id        text,
   played_at        timestamptz not null default now(),
-  created_at       timestamptz not null default now()
+  created_at       timestamptz not null default now(),
+  evius_sent_at    timestamptz                   -- vacío = aún no llegó a Evius (el barredor de la pared lo reintenta)
 );
 create index if not exists results_cedula_idx on public.results (cedula);
+create index if not exists results_evius_pending_idx on public.results (created_at) where evius_sent_at is null;
 create index if not exists results_experience_idx on public.results (experience, played_at desc);
 
 -- Ranking: suma de todos los puntos por cédula (igual que Evius, que acumula cada participación).

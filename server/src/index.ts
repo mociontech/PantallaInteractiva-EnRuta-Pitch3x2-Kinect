@@ -9,6 +9,7 @@ import { attendees, isValidCedula, normalizeCedula } from './attendees';
 import { config } from './config';
 import { now, one, run, type Participant } from './db';
 import { outbox } from './delivery';
+import { startSweeper } from './sweeper';
 import { ranking, supabaseEnabled } from './supabase';
 import {
   adminState, attachWall, clearQueue, detachWall, exportRows, onWallMessage, queueInfo, recoverOnBoot,
@@ -234,6 +235,7 @@ recoverOnBoot();
 await attendees.reload();
 attendees.startAutoRefresh();
 outbox.start();
+startSweeper();
 
 server.listen(config.port, config.host, () => {
   console.log(`\nEnRuta · servidor local en el puerto ${config.port}`);

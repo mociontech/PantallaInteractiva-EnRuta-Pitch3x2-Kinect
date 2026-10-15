@@ -51,6 +51,8 @@ export interface SupabaseResult {
   details: Record<string, unknown>;
   deviceId: string;
   playedAt: string;
+  /** true: la pared ya lo entrega a Evius por su propia cola; así el barredor no lo reenvía. */
+  eviusSent?: boolean;
 }
 
 /** Guarda un resultado. Idempotente: la misma clave no se duplica. */
@@ -67,6 +69,7 @@ export async function saveResult(r: SupabaseResult): Promise<void> {
       details: r.details,
       device_id: r.deviceId,
       played_at: r.playedAt,
+      ...(r.eviusSent ? { evius_sent_at: new Date().toISOString() } : {}),
     },
   });
 }
@@ -86,4 +89,31 @@ export interface RankingRow {
 export async function ranking(limit: number): Promise<RankingRow[]> {
   const cols = 'nombre,cargo,total,partidas,experiencias,pared,triptico,insta';
   return (await rest(`ranking?select=${cols}&limit=${Math.max(1, Math.min(200, limit))}`, { method: 'GET' })) as RankingRow[];
+}
+
+export interface PendingResult {
+  id: string;
+  cedula: string;
+  experience: 'pared' | 'triptico' | 'insta';
+  score: number;
+  completed: boolean;
+  details: Record<string, unknown>;
+  device_id: string | null;
+  played_at: string;
+  idempotency_key: string;
+}
+
+/** Resultados que todavía no llegaron a Evius (más viejos que `minAgeMs`, para no pisar el envío inmediato de cada experiencia). */
+export async function pendingEvius(limit: number, minAgeMs: number): Promise<PendingResult[]> {
+  const before = new Date(Date.now() - minAgeMs).toISOString();
+  return (await rest(`results?evius_sent_at=is.null&created_at=lt.${encodeURIComponent(before)}&order=created_at.asc&limit=${limit}`, { method: 'GET' })) as PendingResult[];
+}
+
+export async function markEviusSent(id: string): Promise<void> {
+  await rest(`results?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', prefer: 'return=minimal', body: { evius_sent_at: new Date().toISOString() } });
+}
+
+export async function attendeeByCedula(cedula: string): Promise<{ nombre: string; cargo: string } | null> {
+  const rows = (await rest(`attendees?cedula=eq.${encodeURIComponent(cedula)}&select=nombre,cargo&limit=1`, { method: 'GET' })) as Array<{ nombre: string; cargo: string }>;
+  return rows[0] ?? null;
 }

@@ -33,6 +33,7 @@ export const outbox = new Outbox<EviusJobPayload, EviusDestination>({
         },
         deviceId: p.result.deviceId,
         playedAt: p.result.endedAt,
+        eviusSent: true,
       }),
   },
   // El puntaje se envía solo cuando la persona ya quedó registrada en Evius.
