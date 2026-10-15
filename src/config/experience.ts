@@ -93,6 +93,8 @@ export const MEDIAPIPE = {
   /** Centro de la zona respecto al hombro derecho, en anchos de hombro (x + = derecha en pantalla, y − = arriba). */
   reachOffsetX: 0.3,
   reachOffsetY: -0.7,
+  /** La vista de la cámara (pantalla "Ubícate" y depuración) se muestra normal, no como espejo. No cambia el seguimiento: el cursor sigue la mano igual. */
+  mirrorPreview: false,
   /** Tiempo que se tolera perder la mano antes de marcar tracked=false. */
   lostGraceMs: 700,
 

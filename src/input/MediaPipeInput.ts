@@ -73,6 +73,10 @@ export class MediaPipeInput implements InputProvider {
   private tracked = false;
   /** Vista de la cámara en una esquina: solo para depuración (?debug=1 o ?preview=1). En producción solo se ve en "Posiciónate". */
   private showPreview = ((q: URLSearchParams) => q.get('preview') === '1' || q.get('debug') === '1')(new URLSearchParams(window.location.search));
+  /** Vista de la cámara como espejo. Por defecto la imagen se ve normal (MEDIAPIPE.mirrorPreview); ?mirror=1 / ?mirror=0 lo cambia. */
+  private mirror = ((q: URLSearchParams) => (q.get('mirror') === '1' ? true : q.get('mirror') === '0' ? false : MEDIAPIPE.mirrorPreview))(
+    new URLSearchParams(window.location.search),
+  );
   private releaseSeen = gate.release;
   private gateHold: number | null = null;
   private lastRaw: { u: number; v: number; t: number } | null = null;
@@ -400,9 +404,11 @@ export class MediaPipeInput implements InputProvider {
     const ctx = c.getContext('2d');
     if (!ctx) return;
     ctx.save();
-    ctx.scale(-1, 1); // espejo
-    ctx.drawImage(v, -c.width, 0, c.width, c.height);
+    if (this.mirror) ctx.scale(-1, 1); // espejo (solo si se pide)
+    ctx.drawImage(v, this.mirror ? -c.width : 0, 0, c.width, c.height);
     ctx.restore();
+    // Las posiciones de abajo están en "espacio espejado" (como usa el seguimiento); con la imagen normal se vuelven a voltear al dibujar.
+    const dx = (mx: number): number => (this.mirror ? mx : 1 - mx);
     const aspect = v.videoHeight / v.videoWidth;
 
     if (gate.canvas === c) {
@@ -422,8 +428,8 @@ export class MediaPipeInput implements InputProvider {
         ctx.strokeStyle = ok ? '#4ade80' : '#ff9a3c';
         ctx.lineWidth = 8;
         ctx.beginPath();
-        ctx.moveTo((1 - rs.x) * c.width, rs.y * c.height);
-        ctx.lineTo((1 - ls.x) * c.width, ls.y * c.height);
+        ctx.moveTo(dx(1 - rs.x) * c.width, rs.y * c.height);
+        ctx.lineTo(dx(1 - ls.x) * c.width, ls.y * c.height);
         ctx.stroke();
       }
       return;
@@ -437,8 +443,8 @@ export class MediaPipeInput implements InputProvider {
       ctx.strokeStyle = colors[p.role];
       ctx.lineWidth = p.role === 'locked' ? 5 : 3;
       ctx.beginPath();
-      ctx.moveTo((1 - rs.x) * c.width, rs.y * c.height);
-      ctx.lineTo((1 - ls.x) * c.width, ls.y * c.height);
+      ctx.moveTo(dx(1 - rs.x) * c.width, rs.y * c.height);
+      ctx.lineTo(dx(1 - ls.x) * c.width, ls.y * c.height);
       ctx.stroke();
     }
 
@@ -452,14 +458,14 @@ export class MediaPipeInput implements InputProvider {
     const bh = (calibration.reachHeight * S) / aspect;
     ctx.strokeStyle = '#ff0';
     ctx.lineWidth = 2;
-    ctx.strokeRect((cx - bw / 2) * c.width, (cy - bh / 2) * c.height, bw * c.width, bh * c.height);
+    ctx.strokeRect((dx(cx) - bw / 2) * c.width, (cy - bh / 2) * c.height, bw * c.width, bh * c.height);
     const tip = user.lms[R_INDEX];
     const h = visible(tip) ? tip : (user.lms[R_WRIST] as NormalizedLandmark);
     ctx.fillStyle = this.tracked ? '#3f3' : '#f44';
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc((1 - h.x) * c.width, h.y * c.height, 12, 0, Math.PI * 2);
+    ctx.arc(dx(1 - h.x) * c.width, h.y * c.height, 12, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
