@@ -61,11 +61,13 @@ function toQueue(participant: Participant): RegisterResponse {
   return { ok: true, status: 'queued', queueId: r.queueId, nombre: participant.nombre, position: r.position };
 }
 
-/** Paso 1: la tablet envía la cédula. Si la conocemos, entra a la cola; si no, pide más datos. */
+/** Paso 1: la tablet envía la cédula y la aceptación de la política de datos. Si la conocemos, entra a la cola; si no, pide más datos. */
 app.post('/api/register', lookupLimit, (req, res) => {
-  const body = req.body as { cedula?: unknown };
+  const body = req.body as { cedula?: unknown; consent?: unknown };
   const cedula = normalizeCedula(typeof body.cedula === 'string' ? body.cedula : '');
   if (!isValidCedula(cedula)) return res.json({ ok: false, error: 'invalid_cedula' } satisfies RegisterResponse);
+  // Aceptar la política de tratamiento de datos es obligatorio para todos (leerla no).
+  if (body.consent !== true) return res.json({ ok: false, error: 'consent_required' } satisfies RegisterResponse);
 
   const a = attendees.find(cedula);
   let p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);
@@ -76,8 +78,8 @@ app.post('/api/register', lookupLimit, (req, res) => {
     }
     // Está en la base del cliente: entra directo. El correo es opcional (la base puede no traerlo).
     const id = run(
-      'INSERT INTO participants (cedula, nombre, correo, cargo, origen, created_at) VALUES (?,?,?,?,?,?)',
-      a.cedula, a.nombre, EMAIL.test(a.correo) ? a.correo : '', a.cargo, 'base', now(),
+      'INSERT INTO participants (cedula, nombre, correo, cargo, origen, consent_at, created_at) VALUES (?,?,?,?,?,?,?)',
+      a.cedula, a.nombre, EMAIL.test(a.correo) ? a.correo : '', a.cargo, 'base', now(), now(),
     );
     p = one<Participant>('SELECT * FROM participants WHERE id = ?', id);
   } else if (a && (p.nombre !== a.nombre || p.cargo !== a.cargo)) {
@@ -86,6 +88,7 @@ app.post('/api/register', lookupLimit, (req, res) => {
     p = one<Participant>('SELECT * FROM participants WHERE id = ?', p.id);
   }
   if (!p) return res.json({ ok: false, error: 'server_error' } satisfies RegisterResponse);
+  run('UPDATE participants SET consent_at = ? WHERE id = ?', now(), p.id); // aceptación más reciente
   return res.json(toQueue(p));
 });
 

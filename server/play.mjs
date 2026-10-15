@@ -17,7 +17,7 @@ const send = (m) => ws.send(JSON.stringify(m));
 send({ t: 'hello' });
 await wait(200);
 
-const reg = await (await fetch(`${base}/api/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cedula }) })).json();
+const reg = await (await fetch(`${base}/api/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cedula, consent: true }) })).json();
 console.log('registro:', JSON.stringify(reg));
 if (!reg.ok || reg.status !== 'queued') process.exit(1);
 await wait(300);

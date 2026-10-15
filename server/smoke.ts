@@ -37,12 +37,13 @@ const summary = (score: number, completed: boolean): SessionSummary => ({
 });
 
 // 1. Validaciones
-check('cédula inválida', (await post<RegisterResponse>('/api/register', { cedula: '12' })).ok === false);
+check('sin aceptar la política no se registra', (await post<RegisterResponse>('/api/register', { cedula: '1000000002' })).ok === false);
+check('cédula inválida', (await post<RegisterResponse>('/api/register', { cedula: '12', consent: true })).ok === false);
 
 // 2. Pared conectada y cédula conocida -> asignación inmediata
 send({ t: 'hello' });
 await wait(150);
-const r1 = await post<RegisterResponse>('/api/register', { cedula: '1.000.000.002' });
+const r1 = await post<RegisterResponse>('/api/register', { cedula: '1.000.000.002', consent: true });
 check('cédula de la base entra a la cola', r1.ok && r1.status === 'queued' && r1.nombre === 'Carlos Rodriguez', r1);
 await wait(150);
 const a1 = inbox.find((m) => m.t === 'assign');
@@ -53,7 +54,7 @@ if (r1.ok && r1.status === 'queued') {
 }
 
 // 3. Cédula desconocida -> pide datos; con consentimiento entra a la cola detrás de Ana
-const r2 = await post<RegisterResponse>('/api/register', { cedula: '999888777' });
+const r2 = await post<RegisterResponse>('/api/register', { cedula: '999888777', consent: true });
 check('cédula desconocida pide datos', r2.ok && r2.status === 'new', r2);
 const bad = await post<RegisterResponse>('/api/register/new', { cedula: '999888777', nombre: 'Pedro Nuevo', correo: 'pedro@ejemplo.com', consent: false });
 check('sin consentimiento se rechaza', !bad.ok && bad.error === 'consent_required', bad);
@@ -63,9 +64,9 @@ const r3 = await post<RegisterResponse>('/api/register/new', { cedula: '99988877
 check('nuevo usuario queda en la cola (1 persona delante)', r3.ok && r3.status === 'queued' && r3.position === 1, r3);
 
 // 4. Base sin correo (lo habitual): entra directo, con el nombre ya formateado
-const r4 = await post<RegisterResponse>('/api/register', { cedula: '1000000004' });
+const r4 = await post<RegisterResponse>('/api/register', { cedula: '1000000004', consent: true });
 check('base sin correo entra directo a la cola', r4.ok && r4.status === 'queued' && r4.nombre === 'Jorge Herrera' && r4.position === 2, r4);
-const r5 = await post<RegisterResponse>('/api/register', { cedula: '1000000003' });
+const r5 = await post<RegisterResponse>('/api/register', { cedula: '1000000003', consent: true });
 check('apellido compuesto bien separado', r5.ok && r5.status === 'queued' && r5.nombre === 'Luisa Fernanda de la Cruz Martinez', r5);
 
 // 5. Ana juega y termina -> se guarda; Pedro es el siguiente al volver la pared a IDLE

@@ -11,6 +11,25 @@ export const T = {
     invalid: 'Escribe tu número de cédula, solo números.',
   },
 
+  // Aceptación de la política (misma redacción que en las demás experiencias). Leerla es opcional; aceptarla es obligatorio.
+  consent: {
+    text: 'Autorizo el tratamiento de mis datos personales.',
+    link: 'Política de Privacidad.',
+  },
+
+  policy: {
+    title: 'Política de privacidad',
+    heading: 'Autorización para el tratamiento de datos personales',
+    paragraphs: [
+      'Autorizo de manera libre, previa, expresa e informada a la Cámara de Comercio de Cartagena, como responsable del tratamiento, para recolectar, almacenar y utilizar los datos personales suministrados en este formulario con el fin de gestionar mi registro y participación en Enruta Empresarial, realizar seguimiento a mi experiencia y enviarme información sobre Enruta y otros programas, servicios, eventos y actividades de la Cámara de Comercio de Cartagena, a través de los medios de contacto suministrados.',
+      'El tratamiento se realizará conforme a la Ley 1581 de 2012, sus normas reglamentarias y la Política de Protección de Datos Personales de la entidad.',
+      'Como titular, tengo derecho a conocer, actualizar y rectificar mis datos; acceder gratuitamente a ellos; solicitar prueba de esta autorización; conocer el uso de mi información; presentar quejas ante la Superintendencia de Industria y Comercio; y solicitar la supresión de mis datos o revocar la autorización cuando legalmente proceda.',
+      'Puedo consultar la política y el aviso de privacidad en Protección de Datos Personales.',
+    ],
+    accept: 'Aceptar',
+    close: 'Volver',
+  },
+
   datos: {
     title: 'REGÍSTRATE',
     cedula: 'Cédula',

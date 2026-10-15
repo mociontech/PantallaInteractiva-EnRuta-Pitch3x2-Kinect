@@ -43,6 +43,36 @@ function FullscreenButton() {
   );
 }
 
+/** Casilla de aceptación + enlace a la política (leerla es opcional; marcar la casilla es obligatorio). */
+function ConsentRow({ top, on, bad, onToggle, onOpenPolicy }: { top: number; on: boolean; bad: boolean; onToggle: () => void; onOpenPolicy: () => void }) {
+  return (
+    <div className={s.consent} style={{ top }}>
+      <button type="button" className={`${s.box} ${s.boxBtn} ${on ? s.boxOn : ''} ${bad ? s.boxBad : ''}`} aria-label="Autorizo el tratamiento de mis datos" aria-pressed={on} onClick={onToggle}>
+        {on ? '✓' : ''}
+      </button>
+      <span className={s.consentText}>
+        {T.consent.text}{' '}
+        <button type="button" className={s.policyLink} onClick={onOpenPolicy}>{T.consent.link}</button>
+      </span>
+    </div>
+  );
+}
+
+/** Política de privacidad a pantalla completa. Se puede cerrar sin aceptar; "Aceptar" marca la casilla. */
+function PolicyScreen({ onAccept, onClose }: { onAccept: () => void; onClose: () => void }) {
+  return (
+    <div className={s.policy}>
+      <button type="button" className={`${s.link} ${s.linkBack}`} onClick={onClose}>‹ {T.policy.close}</button>
+      <div className={s.policyTitle}>{T.policy.title}</div>
+      <div className={s.policyBox}>
+        <div className={s.policyHeading}>{T.policy.heading}</div>
+        {T.policy.paragraphs.map((t) => <p key={t} className={s.policyText}>{t}</p>)}
+      </div>
+      <button type="button" className={`${s.btn} ${s.policyAccept}`} onClick={onAccept}>{T.policy.accept}</button>
+    </div>
+  );
+}
+
 function Logo({ x, y, width }: { x: number; y: number; width: number }) {
   return (
     <div className={s.logo} style={{ left: x, top: y }}>
@@ -86,6 +116,7 @@ export function TabletApp() {
   const [consent, setConsent] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(() => (import.meta.env.DEV || new URLSearchParams(window.location.search).get('debug') === '1') && new URLSearchParams(window.location.search).get('s') === 'politica');
   const [busy, setBusy] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ position: number; status: string } | null>(null);
   const resetTimer = useRef<number | null>(null);
@@ -104,6 +135,7 @@ export function TabletApp() {
     setConsent(false);
     setMessage(null);
     setTouched(false);
+    setPolicyOpen(false);
     setQueueInfo(null);
   }, []);
 
@@ -145,13 +177,18 @@ export function TabletApp() {
       setMessage(T.cedula.invalid);
       return;
     }
+    if (!consent) {
+      setMessage(T.datos.consentRequired);
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
-      const r = await api.register(cedula);
+      const r = await api.register(cedula, consent);
       if (!r.ok) {
         setMessage(
           r.error === 'already_played' ? T.errors.alreadyPlayed
+            : r.error === 'consent_required' ? T.datos.consentRequired
             : r.error === 'invalid_cedula' ? T.cedula.invalid
               : r.error === 'not_found' ? T.errors.notFound : T.errors.server,
         );
@@ -239,14 +276,24 @@ export function TabletApp() {
                 }}
               />
             </Field>
-            <button type="button" className={s.btn} style={{ top: 723 }} disabled={busy} onClick={() => void submitCedula()}>
+            <ConsentRow
+              top={676}
+              on={consent}
+              bad={touched && !consent}
+              onToggle={() => {
+                setConsent((v) => !v);
+                setMessage(null);
+              }}
+              onOpenPolicy={() => setPolicyOpen(true)}
+            />
+            <button type="button" className={s.btn} style={{ top: 800 }} disabled={busy} onClick={() => void submitCedula()}>
               {T.cedula.cta}
             </button>
-            {message && <div className={s.error} style={{ top: 880 }}>{message}</div>}
+            {message && <div className={s.error} style={{ top: 955 }}>{message}</div>}
             <button
               type="button"
               className={`${s.link} ${s.linkBig}`}
-              style={{ top: message ? 1010 : 944 }}
+              style={{ top: message ? 1075 : 985 }}
               onClick={() => {
                 setMessage(null);
                 setTouched(false);
@@ -270,6 +317,7 @@ export function TabletApp() {
             onCedula={(v) => { setCedula(v); setMessage(null); }}
             onNombre={(v) => { setNombre(v); setMessage(null); }}
             onConsent={() => { setConsent((c) => !c); setMessage(null); }}
+            onOpenPolicy={() => setPolicyOpen(true)}
             onBack={() => { setMessage(null); setScreen({ name: 'cedula' }); }}
             onSubmit={() => void submitDatos()}
           />
@@ -291,6 +339,17 @@ export function TabletApp() {
             </button>
           </>
         )}
+
+        {policyOpen && (
+          <PolicyScreen
+            onAccept={() => {
+              setConsent(true);
+              setPolicyOpen(false);
+              setMessage(null);
+            }}
+            onClose={() => setPolicyOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
@@ -307,6 +366,7 @@ interface DatosProps {
   onCedula: (v: string) => void;
   onNombre: (v: string) => void;
   onConsent: () => void;
+  onOpenPolicy: () => void;
   onBack: () => void;
   onSubmit: () => void;
 }
@@ -320,7 +380,7 @@ function DatosForm(p: DatosProps) {
   const yCedula = p.needsCedula ? y() : 0;
   const yNombre = y();
   const yConsent = first + step * row + 4;
-  const yButton = yConsent + 150;
+  const yButton = yConsent + 170;
   return (
     <>
       <button type="button" className={`${s.link} ${s.linkBack}`} onClick={p.onBack}>‹ {T.datos.back}</button>
@@ -349,10 +409,7 @@ function DatosForm(p: DatosProps) {
         />
       </Field>
 
-      <button type="button" className={s.consent} style={{ top: yConsent }} onClick={p.onConsent}>
-        <span className={`${s.box} ${p.consent ? s.boxOn : ''} ${p.touched && !p.consent ? s.boxBad : ''}`}>{p.consent ? '✓' : ''}</span>
-        <span className={s.consentText}>{T.datos.consent}</span>
-      </button>
+      <ConsentRow top={yConsent} on={p.consent} bad={p.touched && !p.consent} onToggle={p.onConsent} onOpenPolicy={p.onOpenPolicy} />
 
       <button type="button" className={s.btn} style={{ top: yButton }} disabled={p.busy} onClick={p.onSubmit}>
         {T.datos.cta}

@@ -38,7 +38,7 @@ check('la pared espera registro', t.includes('Regístrate en la tablet'), t.slic
 await shot('e2e-1-espera');
 
 // La tablet registra a Ana (cédula de la base)
-const r = await api('/api/register', { method: 'POST', body: JSON.stringify({ cedula: '1000000002' }) });
+const r = await api('/api/register', { method: 'POST', body: JSON.stringify({ cedula: '1000000002', consent: true }) });
 check('registro en la tablet', r.ok && r.status === 'queued', r);
 await wait(800);
 t = await text();

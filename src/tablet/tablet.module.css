@@ -209,3 +209,45 @@
   -webkit-tap-highlight-color: transparent;
 }
 .fullscreen:active { background: rgba(255, 255, 255, 0.3); }
+
+/* Casilla de aceptación (botón) y enlace a la política */
+.boxBtn { padding: 0; background: transparent; font-family: var(--font); cursor: pointer; }
+.boxBtn.boxOn { background: var(--orange); }
+.policyLink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: var(--orange);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+/* Política de privacidad a pantalla completa */
+.policy {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: var(--navy);
+  font-family: var(--font);
+  color: var(--white);
+}
+.policyTitle { position: absolute; left: 0; width: 1920px; top: 60px; text-align: center; font-size: 64px; font-weight: 800; line-height: 76px; }
+.policyBox {
+  position: absolute;
+  left: 160px;
+  top: 170px;
+  width: 1600px;
+  height: 790px;
+  box-sizing: border-box;
+  padding: 28px 56px;
+  overflow-y: auto;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 3px solid rgba(255, 255, 255, 0.35);
+}
+.policyHeading { color: var(--orange); text-transform: uppercase; text-align: center; font-weight: 800; font-size: 38px; line-height: 46px; margin-bottom: 20px; }
+.policyText { margin: 0 0 18px; font-size: 28px; line-height: 38px; font-weight: 600; }
+.policyAccept { top: 1010px; }
