@@ -5,12 +5,12 @@ import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer } from 'ws';
 import type { RegisterResponse, WallToServer } from '../../shared/protocol';
-import { attendees, isValidCedula, normalizeCedula } from './attendees';
+import { attendees, isValidCedula, normalizeCedula, type Attendee } from './attendees';
 import { config } from './config';
 import { now, one, run, type Participant } from './db';
 import { outbox } from './delivery';
 import { startSweeper } from './sweeper';
-import { hasPlayed, ranking, resetParticipation, supabaseEnabled } from './supabase';
+import { attendeeByCedula, hasPlayed, ranking, resetParticipation, supabaseEnabled } from './supabase';
 import {
   adminState, attachWall, clearQueue, detachWall, exportRows, onWallMessage, queueInfo, recoverOnBoot,
   register, skipCurrent,
@@ -39,10 +39,10 @@ const lookupLimit = rateLimit(60);
 // ------- validacion por cedula (CSV de asistentes) -------
 
 /** Devuelve { nombre, cargo } de la cedula, o 404 si no esta en el CSV. Los datos salen del CSV; nadie los escribe a mano. */
-app.get(['/attendee', '/api/attendee'], lookupLimit, (req, res) => {
+app.get(['/attendee', '/api/attendee'], lookupLimit, async (req, res) => {
   const cedula = normalizeCedula(typeof req.query.cedula === 'string' ? req.query.cedula : '');
   if (!isValidCedula(cedula)) return res.status(400).json({ error: 'invalid_cedula' });
-  const a = attendees.find(cedula);
+  const a = await findAttendee(cedula);
   if (!a) return res.status(404).json({ error: 'not_found' });
   return res.json({ nombre: a.nombre, cargo: a.cargo });
 });
@@ -62,6 +62,15 @@ function toQueue(participant: Participant): RegisterResponse {
 }
 
 /** Paso 1: la tablet envía la cédula y la aceptación de la política de datos. Si la conocemos, entra a la cola; si no, pide más datos. */
+/** Busca a la persona en el CSV y, si no está, en la base compartida (p. ej. alguien que se registró desde Insta Face o el tríptico). */
+async function findAttendee(cedula: string): Promise<Attendee | null> {
+  const local = attendees.find(cedula);
+  if (local) return local;
+  if (!supabaseEnabled()) return null;
+  const remote = await attendeeByCedula(cedula).catch(() => null);
+  return remote ? { cedula, nombre: remote.nombre, cargo: remote.cargo, correo: '' } : null;
+}
+
 /** ¿Esta cédula ya participó en la pared? Mira la base local y la central (Supabase); si Supabase no responde, vale lo local. */
 async function alreadyPlayed(cedula: string): Promise<boolean> {
   if (config.replayPolicy !== 'block') return false;
@@ -78,7 +87,7 @@ app.post('/api/register', lookupLimit, async (req, res) => {
   if (body.consent !== true) return res.json({ ok: false, error: 'consent_required' } satisfies RegisterResponse);
   if (await alreadyPlayed(cedula)) return res.json({ ok: false, error: 'already_played' } satisfies RegisterResponse);
 
-  const a = attendees.find(cedula);
+  const a = await findAttendee(cedula);
   let p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);
   if (!p) {
     if (!a) {
