@@ -81,6 +81,7 @@ export class MediaPipeInput implements InputProvider {
   private gateHold: number | null = null;
   private lastRaw: { u: number; v: number; t: number } | null = null;
   private jumpRejects = 0;
+  private rejectSince: number | null = null;
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
@@ -113,6 +114,9 @@ export class MediaPipeInput implements InputProvider {
         baseOptions: { modelAssetPath: MEDIAPIPE.modelPath, delegate: 'GPU' },
         runningMode: 'VIDEO',
         numPoses: MEDIAPIPE.numPoses,
+        minPoseDetectionConfidence: MEDIAPIPE.minPoseConfidence,
+        minPosePresenceConfidence: MEDIAPIPE.minPoseConfidence,
+        minTrackingConfidence: MEDIAPIPE.minPoseConfidence,
       });
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { width: MEDIAPIPE.cameraWidth, height: MEDIAPIPE.cameraHeight, facingMode: 'user' },
@@ -204,8 +208,9 @@ export class MediaPipeInput implements InputProvider {
       const gap = (now - lock.lastSeen) / 1000;
       const radius = Math.min(MEDIAPIPE.followMaxRadius, MEDIAPIPE.followRadius + gap * MEDIAPIPE.followGrowPerSec);
       for (const p of people) {
-        const dS = Math.abs(p.S - lock.S) / lock.S;
-        if (dS > MEDIAPIPE.followSizeTolerance) continue;
+        const ratio = p.S / lock.S;
+        if (ratio < MEDIAPIPE.followSizeMin || ratio > MEDIAPIPE.followSizeMax) continue; // más pequeño = está detrás
+        const dS = Math.abs(ratio - 1);
         const d = Math.hypot(p.ax - lock.ax, p.ay - lock.ay) / lock.S;
         if (d >= radius) continue;
         const score = d + dS; // posición y tamaño: la misma persona
@@ -276,14 +281,12 @@ export class MediaPipeInput implements InputProvider {
       this.gateHold = null;
       return;
     }
+    // Quien está frente al muro es la persona MÁS CERCANA a la cámara (la más grande), no la más centrada:
+    // alguien que cruza el pasillo por detrás se ve más pequeño y no debe quedar fijado.
     let best: Person | null = null;
-    let bestD = Infinity;
     for (const p of people) {
-      const d = Math.abs(1 - p.ax - 0.5);
-      if (d < bestD) {
-        bestD = d;
-        best = p;
-      }
+      if (Math.abs(1 - p.ax - 0.5) > MEDIAPIPE.gate.searchHalfWidth) continue;
+      if (!best || p.S > best.S) best = p;
     }
     let state: GateState = 'none';
     if (best) {
@@ -342,11 +345,17 @@ export class MediaPipeInput implements InputProvider {
       const last = this.lastRaw;
       const dt = last ? Math.max(0.016, (now - last.t) / 1000) : 1;
       const jump = last ? Math.hypot(u - last.u, vv - last.v) : 0;
-      if (last && this.tracked && jump > MEDIAPIPE.maxHandSpeed * dt && this.jumpRejects < MEDIAPIPE.jumpGraceFrames) {
+      // Un punto demasiado lejos del hombro no puede ser la mano de esta persona: el modelo tomó el brazo de alguien que pasa.
+      const farFromBody = Math.hypot(u, vv) > MEDIAPIPE.maxArmReach;
+      const tooFast = last !== null && this.tracked && jump > MEDIAPIPE.maxHandSpeed * dt && this.jumpRejects < MEDIAPIPE.jumpGraceFrames;
+      if (farFromBody || tooFast) {
         this.jumpRejects++;
-        this.lastSeen = now; // fotograma ignorado: la mano sigue ahí, se mantiene la última posición
+        this.rejectSince ??= now;
+        // Se mantiene la última posición un momento; si dura demasiado, se suelta el cursor en vez de dejarlo congelado.
+        if (now - this.rejectSince < MEDIAPIPE.jumpDropMs) this.lastSeen = now;
       } else {
         this.jumpRejects = 0;
+        this.rejectSince = null;
         this.lastRaw = { u, v: vv, t: now };
         rawHand.u = u;
         rawHand.v = vv;
@@ -360,6 +369,7 @@ export class MediaPipeInput implements InputProvider {
     } else {
       rawHand.valid = false;
       this.lastRaw = null;
+      this.rejectSince = null;
     }
 
     if (hand) {

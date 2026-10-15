@@ -87,7 +87,7 @@ export const MEDIAPIPE = {
   cameraHeight: 720,
   minVisibility: 0.5,
   /** Personas que MediaPipe detecta a la vez (hay público pasando y gente de pie). */
-  numPoses: 4,
+  numPoses: 3,
   /** Ancho de la zona de alcance, en anchos de hombro. Alto = ancho × 2/3. */
   reachWidth: 2.6,
   /** Centro de la zona respecto al hombro derecho, en anchos de hombro (x + = derecha en pantalla, y − = arriba). */
@@ -119,9 +119,20 @@ export const MEDIAPIPE = {
   /** Radio de seguimiento entre fotogramas y tolerancia de tamaño para reconocer a la misma persona. */
   followRadius: 0.8,
   /** Si el usuario deja de verse, el radio de busqueda crece despacio (anchos de hombro por segundo) hasta followMaxRadius. */
-  followGrowPerSec: 0.8,
-  followMaxRadius: 1.6,
-  followSizeTolerance: 0.3,
+  followGrowPerSec: 0.3,
+  followMaxRadius: 1.0,
+  /**
+   * Tamaño aceptado para seguir al usuario, respecto al suyo. Quien pasa DETRÁS (más lejos de la cámara) se ve más pequeño:
+   * por debajo de followSizeMin se ignora aunque esté justo detrás. followSizeMax cubre al usuario inclinándose hacia la cámara.
+   */
+  followSizeMin: 0.8,
+  followSizeMax: 1.35,
+  /** Confianza mínima del modelo para detectar, mantener y seguir a una persona (más alta = ignora siluetas dudosas del fondo). */
+  minPoseConfidence: 0.6,
+  /** Alcance máximo creíble de la mano desde el hombro derecho (anchos de hombro). Más lejos = el modelo agarró el brazo de OTRA persona. */
+  maxArmReach: 3.2,
+  /** Si los fotogramas inválidos duran más de esto, el cursor deja de mostrarse en vez de quedarse congelado. */
+  jumpDropMs: 1200,
   /** Usuario fijado en la pantalla de posicion: no pierde el control por bajar la mano; solo por desaparecer este tiempo. */
   stickyLostMs: 8000,
   /** Visibilidad minima de codo/muneca para medir el brazo (mas baja que minVisibility: con la mano cerca de la cara se oscurecen). */
@@ -135,7 +146,7 @@ export const MEDIAPIPE = {
   /** Para adquirir el control con la mano, la persona debe estar en el centro de la imagen (+/- fraccion del ancho). */
   acquireHalfWidth: 0.32,
   /** Pantalla "Posicionate": franja central, banda de tamano respecto a la calibracion y tiempo que debe sostenerse. */
-  gate: { holdMs: 1500, centerHalfWidth: 0.16, sizeLow: 0.8, sizeHigh: 1.3, fallbackMin: 0.08, fallbackMax: 0.35 },
+  gate: { holdMs: 1500, centerHalfWidth: 0.16, searchHalfWidth: 0.4, sizeLow: 0.8, sizeHigh: 1.3, fallbackMin: 0.08, fallbackMax: 0.35 },
   /** Filtro One Euro sobre la posición (esta señal es propia, a diferencia de TD). */
   filter: { minCutoff: 1.2, beta: 0.05, dCutoff: 1.0 },
 } as const;
