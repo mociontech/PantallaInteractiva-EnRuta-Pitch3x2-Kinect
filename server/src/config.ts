@@ -28,7 +28,8 @@ export const config = {
   /** Si la persona asignada no empieza en la pared en este tiempo, se pasa a la siguiente. */
   turnTimeoutMs: num(env.TURN_TIMEOUT_MS, 120_000),
   /** [CONFIRMAR] 'allow': una cédula puede jugar más de una vez; 'block': solo una vez. */
-  replayPolicy: env.REPLAY_POLICY === 'block' ? ('block' as const) : ('allow' as const),
+  /** Una sola participación por persona y experiencia (justicia entre participantes). ALLOW_REPLAY=true la desactiva (pruebas). */
+  replayPolicy: env.ALLOW_REPLAY === 'true' || env.REPLAY_POLICY === 'allow' ? ('allow' as const) : ('block' as const),
   /** Identificador de esta pared en los datos enviados a Evius. */
   deviceId: env.DEVICE_ID ?? env.VITE_DEVICE_ID ?? 'pared-01',
 

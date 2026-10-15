@@ -64,8 +64,31 @@ export interface SupabaseResult {
   eviusSent?: boolean;
 }
 
-/** Guarda un resultado. Idempotente: la misma clave no se duplica. */
-export async function saveResult(r: SupabaseResult): Promise<void> {
+/** ¿Ya hay un resultado de esta persona en esta experiencia? (una sola participación por experiencia) */
+export async function hasPlayed(cedula: string, experience: 'pared' | 'triptico' | 'insta'): Promise<boolean> {
+  const rows = (await rest(`results?cedula=eq.${encodeURIComponent(cedula)}&experience=eq.${experience}&select=id&limit=1`, { method: 'GET' })) as unknown[];
+  return rows.length > 0;
+}
+
+/** Borra los resultados de una cédula (todas las experiencias o una) para poder repetir. No deshace lo ya enviado a Evius. */
+export async function resetParticipation(cedula: string, experience?: 'pared' | 'triptico' | 'insta'): Promise<void> {
+  const exp = experience ? `&experience=eq.${experience}` : '';
+  await rest(`results?cedula=eq.${encodeURIComponent(cedula)}${exp}`, { method: 'DELETE', prefer: 'return=minimal' });
+}
+
+/** Guarda un resultado. Idempotente: la misma clave no se duplica. Devuelve false si esa persona ya tenía resultado en esta experiencia. */
+export async function saveResult(r: SupabaseResult): Promise<boolean> {
+  try {
+    await saveResultRaw(r);
+    return true;
+  } catch (err) {
+    // 409 = índice único (cédula, experiencia): ya participó. No se reintenta (quedaría atascado).
+    if (err instanceof Error && /HTTP 409/.test(err.message)) return false;
+    throw err;
+  }
+}
+
+async function saveResultRaw(r: SupabaseResult): Promise<void> {
   await rest('results?on_conflict=idempotency_key', {
     method: 'POST',
     prefer: 'resolution=ignore-duplicates,return=minimal',

@@ -10,7 +10,7 @@ import { config } from './config';
 import { now, one, run, type Participant } from './db';
 import { outbox } from './delivery';
 import { startSweeper } from './sweeper';
-import { ranking, supabaseEnabled } from './supabase';
+import { hasPlayed, ranking, resetParticipation, supabaseEnabled } from './supabase';
 import {
   adminState, attachWall, clearQueue, detachWall, exportRows, onWallMessage, queueInfo, recoverOnBoot,
   register, skipCurrent,
@@ -62,12 +62,21 @@ function toQueue(participant: Participant): RegisterResponse {
 }
 
 /** Paso 1: la tablet envía la cédula y la aceptación de la política de datos. Si la conocemos, entra a la cola; si no, pide más datos. */
-app.post('/api/register', lookupLimit, (req, res) => {
+/** ¿Esta cédula ya participó en la pared? Mira la base local y la central (Supabase); si Supabase no responde, vale lo local. */
+async function alreadyPlayed(cedula: string): Promise<boolean> {
+  if (config.replayPolicy !== 'block') return false;
+  if (one('SELECT s.id FROM sessions s JOIN participants p ON p.id = s.participant_id WHERE p.cedula = ? LIMIT 1', cedula)) return true;
+  if (!supabaseEnabled()) return false;
+  return hasPlayed(cedula, 'pared').catch(() => false);
+}
+
+app.post('/api/register', lookupLimit, async (req, res) => {
   const body = req.body as { cedula?: unknown; consent?: unknown };
   const cedula = normalizeCedula(typeof body.cedula === 'string' ? body.cedula : '');
   if (!isValidCedula(cedula)) return res.json({ ok: false, error: 'invalid_cedula' } satisfies RegisterResponse);
   // Aceptar la política de tratamiento de datos es obligatorio para todos (leerla no).
   if (body.consent !== true) return res.json({ ok: false, error: 'consent_required' } satisfies RegisterResponse);
+  if (await alreadyPlayed(cedula)) return res.json({ ok: false, error: 'already_played' } satisfies RegisterResponse);
 
   const a = attendees.find(cedula);
   let p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);
@@ -93,7 +102,7 @@ app.post('/api/register', lookupLimit, (req, res) => {
 });
 
 /** Paso 2 (solo si la cédula no está en la base): nombre y autorización de datos. El correo es opcional. */
-app.post('/api/register/new', lookupLimit, (req, res) => {
+app.post('/api/register/new', lookupLimit, async (req, res) => {
   const body = req.body as { cedula?: unknown; nombre?: unknown; correo?: unknown; consent?: unknown };
   const cedula = normalizeCedula(typeof body.cedula === 'string' ? body.cedula : '');
   const nombre = cleanName(body.nombre);
@@ -106,6 +115,7 @@ app.post('/api/register/new', lookupLimit, (req, res) => {
   if (nombre.length < 3 || nombre.length > 120 || !/\p{L}/u.test(nombre)) return fail('invalid_name');
   if (correo !== '' && (!EMAIL.test(correo) || correo.length > 120)) return fail('invalid_email');
   if (body.consent !== true) return fail('consent_required');
+  if (await alreadyPlayed(cedula)) return fail('already_played');
 
   let p = one<Participant>('SELECT * FROM participants WHERE cedula = ?', cedula);
   if (p) {
@@ -159,6 +169,22 @@ function requirePin(req: Request, res: Response, next: NextFunction): void {
 app.use('/api/admin', requirePin);
 app.get('/api/admin/state', (_req, res) => res.json(adminState()));
 app.post('/api/admin/skip', (_req, res) => res.json({ ok: skipCurrent() }));
+/** Operador: permite que una cédula vuelva a participar (borra sus resultados locales y de Supabase; Evius conserva lo ya enviado). */
+app.post('/api/admin/reset-participation', express.json(), async (req, res) => {
+  const cedula = normalizeCedula(typeof req.body?.cedula === 'string' ? req.body.cedula : '');
+  const exp = req.body?.experience;
+  const experience = exp === 'pared' || exp === 'triptico' || exp === 'insta' ? exp : undefined;
+  if (!isValidCedula(cedula)) return res.json({ ok: false, error: 'invalid_cedula' });
+  if (!experience || experience === 'pared') {
+    run('DELETE FROM sessions WHERE participant_id IN (SELECT id FROM participants WHERE cedula = ?)', cedula);
+  }
+  try {
+    if (supabaseEnabled()) await resetParticipation(cedula, experience);
+  } catch (err) {
+    return res.status(502).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+  return res.json({ ok: true, cedula, experience: experience ?? 'todas' });
+});
 app.post('/api/admin/clear-queue', (_req, res) => res.json({ ok: true, cleared: clearQueue() }));
 app.post('/api/admin/retry-evius', (_req, res) => {
   outbox.retryNow();

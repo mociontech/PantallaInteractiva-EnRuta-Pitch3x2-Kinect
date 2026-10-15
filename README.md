@@ -117,6 +117,17 @@ curl -X POST localhost:4010/__config -d '{"fail":true}'            # simula Eviu
 curl -X POST localhost:4010/__config -d '{"noExperiences":true}'   # obliga al fallback a /activities
 ```
 
+## Una sola participación por persona
+
+Cada persona puede participar **una vez por experiencia** (pared, tríptico, Insta Face), para que sea parejo. Se aplica en tres niveles:
+1. **Al entrar:** la tablet, el tríptico e Insta Face consultan Supabase y avisan "Esta cédula ya participó".
+2. **En la base:** un índice único (cédula + experiencia) en `results` impide guardar un segundo resultado.
+3. **En Evius:** si Supabase detecta el duplicado, no se manda un segundo puntaje.
+
+Cuenta como participación todo resultado guardado; en la pared incluye una sesión abandonada (su puntaje parcial se registra). Para pruebas: `ALLOW_REPLAY=true`
+desactiva el bloqueo de entrada (el índice único sigue evitando el doble puntaje). Para devolver el turno a alguien (p. ej. falló la cámara), el operador usa
+`POST /api/admin/reset-participation {"cedula":"...","experience":"pared|triptico|insta"}` (con el PIN en `x-admin-pin`; sin `experience` borra las tres). Lo ya enviado a Evius no se borra.
+
 ## Operador (`/admin`)
 
 Estado de la pared y de quién tiene el turno, fila de espera, últimas sesiones con su estado de envío a Evius, y acciones:
