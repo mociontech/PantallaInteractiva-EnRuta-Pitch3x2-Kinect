@@ -170,6 +170,8 @@ export const MEDIAPIPE = {
 
 /** Recorrido de sensibilidad en las instrucciones: puntos (px de Stage) que se visitan uno a uno. */
 export const COURSE = {
+  /** false: se omite el punto de práctica y el recorrido de 5 puntos; las instrucciones quedan solo con las tarjetas y el botón para continuar. */
+  enabled: false,
   dwellMs: 700,
   /** Pausa entre un punto y el siguiente. */
   gapMs: 350,

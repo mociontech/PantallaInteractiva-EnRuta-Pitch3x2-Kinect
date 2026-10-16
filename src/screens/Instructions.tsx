@@ -30,6 +30,7 @@ function StepIcon({ name }: { name: string }) {
 }
 
 function initialPhase(): Phase {
+  if (!COURSE.enabled) return 'done'; // sin práctica ni recorrido
   // Solo para capturas/verificación: ?static=1&phase=course|done
   if (!STATIC_MODE) return 'read';
   const q = new URLSearchParams(window.location.search).get('phase');
@@ -164,6 +165,7 @@ export function Instructions() {
             </div>
           ))}
 
+          {COURSE.enabled && (
           <DwellTarget
             id="practice"
             shape="circle"
@@ -189,9 +191,12 @@ export function Instructions() {
               </div>
             )}
           </DwellTarget>
-          <div style={{ ...at(387, 889, 900), fontSize: 53, lineHeight: '60px', fontWeight: 600, color: 'var(--white)' }}>
-            {done ? TEXT.instructions.course.done : TEXT.instructions.practice}
-          </div>
+          )}
+          {COURSE.enabled && (
+            <div style={{ ...at(387, 889, 900), fontSize: 53, lineHeight: '60px', fontWeight: 600, color: 'var(--white)' }}>
+              {done ? TEXT.instructions.course.done : TEXT.instructions.practice}
+            </div>
+          )}
 
           <CTAButton
             id="instructions-continue"
