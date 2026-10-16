@@ -5,6 +5,7 @@ import { Icon } from '../components/Icon/Icon';
 import { RouteLine } from '../components/RouteLine/RouteLine';
 import { StationHeader } from '../components/StationHeader/StationHeader';
 import { AREAS, AREA_ORDER, TEXT, type AreaId } from '../config/content';
+import { TIMING } from '../config/experience';
 import { STATIC_MODE } from '../config/mode';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
@@ -36,11 +37,18 @@ export function DiscoverRoute() {
 
   useEffect(() => {
     if (STATIC_MODE) return undefined;
-    const ids = ITEMS.map((_, i) => window.setTimeout(() => setDrawn(i + 1), 600 + i * 700));
+    const ids = ITEMS.map((_, i) => window.setTimeout(() => setDrawn(i + 1), 400 + i * 450));
     return () => ids.forEach((t) => window.clearTimeout(t));
   }, []);
 
   const done = drawn >= ITEMS.length;
+
+  // Mostrado todo el contenido, pasa sola a la siguiente estación.
+  useEffect(() => {
+    if (!done || STATIC_MODE) return undefined;
+    const t = window.setTimeout(() => act({ type: 'COMPLETE_STATION', n: 3 }), TIMING.autoAdvanceMs);
+    return () => window.clearTimeout(t);
+  }, [done, act]);
 
   return (
     <div className={s.screen}>

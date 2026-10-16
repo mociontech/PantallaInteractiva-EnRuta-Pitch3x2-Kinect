@@ -1,8 +1,11 @@
+import { useEffect } from 'react';
 import { Background } from '../components/Background/Background';
 import { CTAButton } from '../components/CTAButton/CTAButton';
 import { Icon } from '../components/Icon/Icon';
 import { StationHeader } from '../components/StationHeader/StationHeader';
 import { AREAS, AREA_ORDER, TEXT, type AreaId } from '../config/content';
+import { TIMING } from '../config/experience';
+import { STATIC_MODE } from '../config/mode';
 import { DwellTarget } from '../interaction/DwellTarget';
 import { useSession } from '../state/SessionContext';
 import { at } from './layout';
@@ -21,6 +24,13 @@ export function Diagnosis() {
   const { state, act } = useSession();
   const count = state.areas.length;
   const full = count === 2;
+
+  // Con las dos áreas elegidas, pasa sola a la siguiente estación (si cambia la elección, se cancela).
+  useEffect(() => {
+    if (!full || STATIC_MODE) return undefined;
+    const t = window.setTimeout(() => act({ type: 'COMPLETE_STATION', n: 2 }), TIMING.autoAdvanceMs);
+    return () => window.clearTimeout(t);
+  }, [full, act]);
 
   return (
     <div className={s.screen}>

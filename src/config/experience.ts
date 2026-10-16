@@ -19,10 +19,12 @@ export const LAYOUT = {
 } as const;
 
 export const TIMING = {
-  dwellMs: 1200,
-  dwellCtaMs: 1500,
-  cooldownMs: 800,
-  transitionBlockMs: 600,
+  dwellMs: 800,
+  dwellCtaMs: 1000,
+  cooldownMs: 500,
+  transitionBlockMs: 450,
+  /** Estaciones 1, 2 y 3: segundos que se espera, ya mostrado todo el contenido, antes de pasar solas (el botón sigue sirviendo para adelantar). */
+  autoAdvanceMs: 2500,
   inactivityWarnMs: 20_000,
   idleReturnMs: 30_000,
   untrackedIdleMs: 10_000,
@@ -52,7 +54,7 @@ export const SCORE = {
 export const GAME = {
   durationMs: 30_000,
   maxItems: 3,
-  itemLifeMs: 3000,
+  itemLifeMs: 5500,
   spawnEveryMs: 700,
   startDelayMs: 1000,
   /** Puntos de juego para llenar la barra de la planta (y máximo que aporta el juego al total). */

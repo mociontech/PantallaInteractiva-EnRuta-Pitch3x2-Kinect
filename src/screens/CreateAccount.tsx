@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TIMING } from '../config/experience';
 import { Background } from '../components/Background/Background';
 import { CTAButton } from '../components/CTAButton/CTAButton';
 import { Icon } from '../components/Icon/Icon';
@@ -17,11 +18,18 @@ export function CreateAccount() {
 
   useEffect(() => {
     if (STATIC_MODE) return undefined;
-    const ids = [0, 1, 2, 3].map((i) => window.setTimeout(() => setShown(i + 1), 500 + i * 1100));
+    const ids = [0, 1, 2, 3].map((i) => window.setTimeout(() => setShown(i + 1), 300 + i * 700));
     return () => ids.forEach((t) => window.clearTimeout(t));
   }, []);
 
   const done = shown >= 4;
+
+  // Mostrado todo el contenido, pasa sola a la siguiente estación.
+  useEffect(() => {
+    if (!done || STATIC_MODE) return undefined;
+    const t = window.setTimeout(() => act({ type: 'COMPLETE_STATION', n: 1 }), TIMING.autoAdvanceMs);
+    return () => window.clearTimeout(t);
+  }, [done, act]);
 
   return (
     <div className={s.screen}>
