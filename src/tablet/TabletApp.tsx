@@ -116,6 +116,8 @@ export function TabletApp() {
   const [consent, setConsent] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  /** Si el formulario de registro debe pedir la cédula. Se decide al entrar: antes dependía de lo escrito y el campo desaparecía al teclear el 5.º dígito. */
+  const [askCedula, setAskCedula] = useState(true);
   const [policyOpen, setPolicyOpen] = useState(() => (import.meta.env.DEV || new URLSearchParams(window.location.search).get('debug') === '1') && new URLSearchParams(window.location.search).get('s') === 'politica');
   const [busy, setBusy] = useState(false);
   const [queueInfo, setQueueInfo] = useState<{ position: number; status: string } | null>(null);
@@ -135,6 +137,7 @@ export function TabletApp() {
     setConsent(false);
     setMessage(null);
     setTouched(false);
+    setAskCedula(true);
     setPolicyOpen(false);
     setQueueInfo(null);
   }, []);
@@ -196,6 +199,7 @@ export function TabletApp() {
         setScreen({ name: 'listo', queueId: r.queueId, nombre: r.nombre, position: r.position });
       } else {
         setTouched(false);
+        setAskCedula(false); // ya la escribió y es válida
         setScreen({ name: 'datos' });
       }
     } catch (err) {
@@ -297,6 +301,7 @@ export function TabletApp() {
               onClick={() => {
                 setMessage(null);
                 setTouched(false);
+                setAskCedula(cedula.length < 5);
                 setScreen({ name: 'datos' });
               }}
             >
@@ -307,7 +312,7 @@ export function TabletApp() {
 
         {screen.name === 'datos' && (
           <DatosForm
-            needsCedula={cedula.length < 5}
+            needsCedula={askCedula}
             cedula={cedula}
             nombre={nombre}
             consent={consent}
