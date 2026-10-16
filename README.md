@@ -210,5 +210,6 @@ Cambios de sensación (todos desactivables): el cursor se dibuja al ritmo de la 
 (~40 % menos atraso visible al mover rápido; +20–28 px de rebote al frenar un movimiento muy rápido), un **imán visual** acerca el cursor al centro del botón cercano (no cambia qué se activa),
 la **zona muerta se adapta** a la amplificación del ruido (5–16 px) y el modelo ve hasta **2 personas** en vez de 3.
 - Probar el anterior sin recompilar: añadir **?classic=1** a la dirección de la pared.
+- Con **?debug=1**, la tecla **H** oculta o muestra todo lo técnico (vista de la cámara, cajas de los botones y datos de rendimiento); se recuerda al recargar. El pop-up "Ubícate" no se oculta.
 - Volver al código anterior: git checkout cursor-anterior (etiqueta con el estado previo) o git revert del commit "Cursor: dibujado al ritmo de la pantalla...".
 - Ajustes finos: CURSOR_FEEL y MEDIAPIPE.deadzone en src/config/experience.ts.

@@ -1,5 +1,6 @@
 import { CURSOR_FEEL, INPUT, MEDIAPIPE, STAGE, TIMING } from '../config/experience';
 import { CLASSIC_CURSOR, isDebugMode } from '../config/mode';
+import { isTechHidden } from '../dev/techUi';
 import { cursor, subscribeActivate } from '../input/cursorStore';
 
 export type TargetMode = 'dwell' | 'contact';
@@ -192,7 +193,7 @@ export class DwellEngine {
     const active = cursor.tracked && now >= this.blockedUntil;
     this.updateMagnet(active);
     const hits: Array<{ reg: Registration; dist: number }> = [];
-    const debug = isDebugMode();
+    const debug = isDebugMode() && !isTechHidden();
     const dbg: typeof this.debugRects = [];
 
     for (const reg of this.regs.values()) {

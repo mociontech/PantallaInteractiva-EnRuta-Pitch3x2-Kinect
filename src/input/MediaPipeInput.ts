@@ -6,6 +6,7 @@ import { gate, link, pushSample, type GateState } from './cursorStore';
 import { OneEuro } from './oneEuro';
 import { STAGE } from '../config/experience';
 import { CLASSIC_CURSOR } from '../config/mode';
+import { isTechHidden, subscribeTech } from '../dev/techUi';
 
 // Índices de MediaPipe Pose (derecha = derecha anatómica de la persona).
 const R_SHOULDER = 12;
@@ -99,6 +100,7 @@ export class MediaPipeInput implements InputProvider {
   private camFrames = 0;
   private camSince = 0;
   private vfc = 0;
+  private unsubTech: (() => void) | null = null;
   private lastFilterT = 0;
   private recent: Array<{ x: number; y: number }> = [];
 
@@ -140,7 +142,13 @@ export class MediaPipeInput implements InputProvider {
       video.srcObject = this.stream;
       await video.play();
       this.video = video;
-      if (this.showPreview) this.mountPreview();
+      if (this.showPreview) {
+        this.mountPreview();
+        // H oculta o muestra la vista de la cámara de la esquina (la de "Ubícate" no es técnica y no se toca).
+        this.unsubTech = subscribeTech(() => {
+          if (this.preview) this.preview.style.display = isTechHidden() ? 'none' : 'block';
+        });
+      }
       window.addEventListener('keydown', this.onKey);
       link.status = 'open';
       this.startFrameLoop();
@@ -258,6 +266,8 @@ export class MediaPipeInput implements InputProvider {
     this.stream?.getTracks().forEach((t) => t.stop());
     this.dropWorker();
     this.landmarker?.close();
+    this.unsubTech?.();
+    this.unsubTech = null;
     this.preview?.remove();
     this.stream = null;
     this.landmarker = null;
@@ -276,8 +286,9 @@ export class MediaPipeInput implements InputProvider {
     const c = document.createElement('canvas');
     c.width = 480;
     c.height = 270;
-    c.style.cssText =
-      'position:fixed;left:8px;bottom:8px;width:400px;height:225px;z-index:99999;pointer-events:none;border:3px solid #fff;border-radius:12px;background:#000';
+    c.style.display = isTechHidden() ? 'none' : 'block';
+    c.style.cssText +=
+      ';position:fixed;left:8px;bottom:8px;width:400px;height:225px;z-index:99999;pointer-events:none;border:3px solid #fff;border-radius:12px;background:#000';
     document.body.appendChild(c);
     this.preview = c;
   }
@@ -637,7 +648,7 @@ export class MediaPipeInput implements InputProvider {
       this.recent = [];
     }
 
-    const surface = gate.canvas ?? this.preview;
+    const surface = gate.canvas ?? (isTechHidden() ? null : this.preview);
     if (surface) this.drawPreview(surface, v, people, user);
   }
 

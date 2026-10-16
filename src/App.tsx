@@ -10,6 +10,7 @@ import { KinectCursor } from './components/KinectCursor/KinectCursor';
 import { Stage } from './components/Stage/Stage';
 import { TransitionOverlay } from './components/TransitionOverlay/TransitionOverlay';
 import { DebugOverlay, isDebug } from './dev/DebugOverlay';
+import { toggleTech, useTechHidden } from './dev/techUi';
 import { DwellProvider } from './interaction/DwellContext';
 import { useInputProvider } from './input/useCursor';
 import { CalibrationScreen } from './screens/Calibration';
@@ -53,6 +54,7 @@ function Current() {
 
 export function App() {
   const debug = isDebug();
+  const techHidden = useTechHidden();
   useInputProvider();
 
   // Con registro, la pared se conecta al servidor local para recibir a quien se registre en la tablet.
@@ -63,11 +65,25 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    document.body.dataset.kiosk = debug ? 'false' : 'true';
+    // Con lo técnico oculto la pared se ve como en producción (sin puntero del sistema).
+    document.body.dataset.kiosk = debug && !techHidden ? 'false' : 'true';
     document.body.dataset.static = STATIC_MODE ? 'true' : 'false';
     const noMenu = (e: Event): void => e.preventDefault();
     window.addEventListener('contextmenu', noMenu);
     return () => window.removeEventListener('contextmenu', noMenu);
+  }, [debug, techHidden]);
+
+  // Tecla H: oculta o muestra todo lo técnico (cámara, cajas de botones y datos). Solo con ?debug=1.
+  useEffect(() => {
+    if (!debug) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'h') return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      toggleTech();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [debug]);
 
   return (
@@ -75,7 +91,7 @@ export function App() {
       <Stage>
         <SessionProvider>
           <Current />
-          {debug && !STATIC_MODE && <DebugOverlay />}
+          {debug && !STATIC_MODE && !techHidden && <DebugOverlay />}
         </SessionProvider>
         {!STATIC_MODE && <KinectCursor />}
       </Stage>
