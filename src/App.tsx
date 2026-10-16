@@ -10,6 +10,7 @@ import { KinectCursor } from './components/KinectCursor/KinectCursor';
 import { Stage } from './components/Stage/Stage';
 import { TransitionOverlay } from './components/TransitionOverlay/TransitionOverlay';
 import { DebugOverlay, isDebug } from './dev/DebugOverlay';
+import { keepFullscreen } from './dev/keepFullscreen';
 import { toggleTech, useTechHidden } from './dev/techUi';
 import { DwellProvider } from './interaction/DwellContext';
 import { useInputProvider } from './input/useCursor';
@@ -63,6 +64,9 @@ export function App() {
     serverLink.start();
     return () => serverLink.stop();
   }, []);
+
+  // Pantalla completa siempre: entra al primer gesto y vuelve a entrar si se sale. En debug no, para poder usar las herramientas del navegador.
+  useEffect(() => (debug || STATIC_MODE ? undefined : keepFullscreen()), [debug]);
 
   useEffect(() => {
     // Con lo técnico oculto la pared se ve como en producción (sin puntero del sistema).
