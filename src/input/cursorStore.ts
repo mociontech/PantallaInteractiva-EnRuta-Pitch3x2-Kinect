@@ -16,6 +16,11 @@ export const cursor = {
   hoverId: null as string | null,
   /** Momento en que se perdió la mano (null si está siendo seguida). */
   lostAt: null as number | null,
+  /** Hora de la última muestra y contador (para dibujar el cursor al ritmo de la pantalla). */
+  t: 0,
+  seq: 0,
+  /** Imán: centro del botón más cercano y fuerza 0..1 (lo calcula el motor de interacción; solo afecta al dibujo). */
+  magnet: { x: 0, y: 0, k: 0 },
 };
 
 export const link = {
@@ -71,6 +76,8 @@ export function pushSample(s: InputSample): void {
   if (s.tracked && Math.hypot(nx - cursor.x, ny - cursor.y) > 12) touchActivity();
   cursor.x = nx;
   cursor.y = ny;
+  cursor.t = performance.now();
+  cursor.seq++;
   if (cursor.tracked !== s.tracked) {
     cursor.tracked = s.tracked;
     cursor.lostAt = s.tracked ? null : performance.now();

@@ -5,6 +5,7 @@ import type { InputProvider } from './InputProvider';
 import { gate, link, pushSample, type GateState } from './cursorStore';
 import { OneEuro } from './oneEuro';
 import { STAGE } from '../config/experience';
+import { CLASSIC_CURSOR } from '../config/mode';
 
 // Índices de MediaPipe Pose (derecha = derecha anatómica de la persona).
 const R_SHOULDER = 12;
@@ -188,7 +189,7 @@ export class MediaPipeInput implements InputProvider {
     this.landmarker = await PoseLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: MEDIAPIPE.modelPath, delegate: 'GPU' },
       runningMode: 'VIDEO',
-      numPoses: MEDIAPIPE.numPoses,
+      numPoses: CLASSIC_CURSOR ? 3 : MEDIAPIPE.numPoses,
       minPoseDetectionConfidence: MEDIAPIPE.minPoseConfidence,
       minPosePresenceConfidence: MEDIAPIPE.minPoseConfidence,
       minTrackingConfidence: MEDIAPIPE.minPoseConfidence,
@@ -235,7 +236,7 @@ export class MediaPipeInput implements InputProvider {
         t: 'init',
         wasmPath: new URL(MEDIAPIPE.wasmPath, window.location.href).toString(),
         modelPath: new URL(MEDIAPIPE.modelPath, window.location.href).toString(),
-        numPoses: MEDIAPIPE.numPoses,
+        numPoses: CLASSIC_CURSOR ? 3 : MEDIAPIPE.numPoses,
         confidence: MEDIAPIPE.minPoseConfidence,
       });
     });
@@ -375,6 +376,13 @@ export class MediaPipeInput implements InputProvider {
       return cand;
     }
     return null;
+  }
+
+  /** Zona muerta en px de pantalla: fija en modo clásico; si no, proporcional a lo que se amplifica el ruido del modelo (más lejos = mayor). */
+  private deadzone(): number {
+    if (CLASSIC_CURSOR || link.gain <= 0) return MEDIAPIPE.deadzonePx;
+    const z = MEDIAPIPE.deadzone;
+    return Math.min(z.max, Math.max(z.min, z.perGain * link.gain));
   }
 
   /** Suaviza el hombro y su ancho (paso bajo): el temblor de este marco de referencia se sumaba al de la mano. */
@@ -596,8 +604,9 @@ export class MediaPipeInput implements InputProvider {
         const dx = (fx - this.outX) * STAGE.width;
         const dy = (fy - this.outY) * STAGE.height;
         const d = Math.hypot(dx, dy);
-        if (d > MEDIAPIPE.deadzonePx) {
-          const k = (d - MEDIAPIPE.deadzonePx) / d;
+        const dz = this.deadzone();
+        if (d > dz) {
+          const k = (d - dz) / d;
           this.outX += (dx * k) / STAGE.width;
           this.outY += (dy * k) / STAGE.height;
         }

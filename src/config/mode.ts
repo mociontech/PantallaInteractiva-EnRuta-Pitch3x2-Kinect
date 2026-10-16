@@ -18,3 +18,12 @@ export function requestedScreen(): Screen | null {
 export function isDebugMode(): boolean {
   return import.meta.env.DEV || params.get('debug') === '1';
 }
+
+/**
+ * ?classic=1: vuelve al cursor anterior (sin interpolación, sin imán, zona muerta fija de 7 px y 3 personas en el modelo).
+ * Sirve para comparar rápido en el sitio: se cambia la dirección y se recarga, sin recompilar.
+ */
+export const CLASSIC_CURSOR = params.get('classic') === '1';
+
+/** ?smooth=1 fuerza el suavizado y el imán también con ratón (para probarlos sin cámara). */
+export const FORCE_SMOOTH = params.get('smooth') === '1';

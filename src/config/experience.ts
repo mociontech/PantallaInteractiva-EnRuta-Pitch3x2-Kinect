@@ -87,7 +87,7 @@ export const MEDIAPIPE = {
   cameraHeight: 720,
   minVisibility: 0.5,
   /** Personas que MediaPipe detecta a la vez (hay público pasando y gente de pie). */
-  numPoses: 3,
+  numPoses: 2,
   /** Ancho de la zona de alcance, en anchos de hombro. Alto = ancho × 2/3. */
   reachWidth: 2.6,
   /** Centro de la zona respecto al hombro derecho, en anchos de hombro (x + = derecha en pantalla, y − = arriba). */
@@ -159,6 +159,8 @@ export const MEDIAPIPE = {
    */
   referenceCutoffHz: 0.8,
   deadzonePx: 7,
+  /** Zona muerta adaptable: crece con la amplificación del ruido (más lejos = más temblor en pantalla). dz = clamp(perGain × ganancia, min, max). */
+  deadzone: { perGain: 1.75, min: 5, max: 16 },
   targetExitMarginPx: 30,
   /** FPS que se piden a la cámara (en poca luz muchas webcams bajan a 15 fps y el cursor se ve a saltos). */
   cameraFps: 30,
@@ -177,4 +179,15 @@ export const COURSE = {
     { x: 1660, y: 960 },
     { x: 260, y: 960 },
   ],
+} as const;
+
+/**
+ * Cursor de la cámara: dibujado al ritmo de la pantalla y atracción visual hacia los botones.
+ * ?classic=1 lo desactiva todo (vuelve al comportamiento anterior).
+ */
+export const CURSOR_FEEL = {
+  // Medido con el ruido real del modelo: reduce ~40 % el atraso visible al mover rápido, sin cambiar el temblor en reposo (+~8 px de rebote al frenar).
+  smoother: { predictMs: 70, predictGain: 0.8, tauMs: 12, snapPx: 320, gateLoPxS: 150, gateHiPxS: 500 },
+  /** Imán: dentro de este margen alrededor de un botón (px de Stage) el cursor dibujado se acerca a su centro, hasta `strength` del camino. */
+  magnet: { marginPx: 110, strength: 0.45 },
 } as const;

@@ -1,5 +1,5 @@
-import { INPUT, MEDIAPIPE, STAGE, TIMING } from '../config/experience';
-import { isDebugMode } from '../config/mode';
+import { CURSOR_FEEL, INPUT, MEDIAPIPE, STAGE, TIMING } from '../config/experience';
+import { CLASSIC_CURSOR, isDebugMode } from '../config/mode';
 import { cursor, subscribeActivate } from '../input/cursorStore';
 
 export type TargetMode = 'dwell' | 'contact';
@@ -144,6 +144,40 @@ export class DwellEngine {
     reg.setView(reg.view);
   }
 
+  /**
+   * Imán (solo visual): si el cursor está cerca de un botón, el cursor dibujado se acerca a su centro. Esconde el temblor justo donde
+   * se apunta. No cambia qué botón se activa: la activación sigue usando la posición real de la mano.
+   */
+  private updateMagnet(active: boolean): void {
+    const m = cursor.magnet;
+    if (CLASSIC_CURSOR || !active) {
+      m.k = 0;
+      return;
+    }
+    let best = 0;
+    let bx = 0;
+    let by = 0;
+    for (const [id, rect] of this.rects) {
+      const reg = this.regs.get(id);
+      if (!rect || !reg || reg.opts.disabled || reg.opts.mode === 'contact') continue;
+      const cx = rect.x + rect.w / 2;
+      const cy = rect.y + rect.h / 2;
+      const reach = Math.min(rect.w, rect.h) / 2 + reg.opts.padding + CURSOR_FEEL.magnet.marginPx;
+      const d = Math.hypot(cursor.x - cx, cursor.y - cy);
+      if (d >= reach) continue;
+      const t = 1 - d / reach;
+      const k = CURSOR_FEEL.magnet.strength * t * t * (3 - 2 * t); // smoothstep: sin tirones al entrar
+      if (k > best) {
+        best = k;
+        bx = cx;
+        by = cy;
+      }
+    }
+    m.x = bx;
+    m.y = by;
+    m.k = best;
+  }
+
   private tick(now: number): void {
     const dt = Math.min(100, now - this.last);
     this.last = now;
@@ -156,6 +190,7 @@ export class DwellEngine {
     if (!sr || sr.width === 0) return;
 
     const active = cursor.tracked && now >= this.blockedUntil;
+    this.updateMagnet(active);
     const hits: Array<{ reg: Registration; dist: number }> = [];
     const debug = isDebugMode();
     const dbg: typeof this.debugRects = [];

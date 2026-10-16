@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { cursor } from '../../input/cursorStore';
+import { CURSOR_FEEL } from '../../config/experience';
+import { CLASSIC_CURSOR, FORCE_SMOOTH } from '../../config/mode';
+import { CursorSmoother } from '../../input/cursorSmoother';
+import { cursor, link } from '../../input/cursorStore';
 import s from './KinectCursor.module.css';
 
 const RING_R = 56;
@@ -15,10 +18,32 @@ export function KinectCursor() {
 
   useEffect(() => {
     let raf = 0;
+    const smoother = new CursorSmoother(CURSOR_FEEL.smoother);
+    let seq = -1;
+    let wasTracked = false;
     const loop = (): void => {
       const el = root.current;
+      let x = cursor.x;
+      let y = cursor.y;
+      // Con cámara (o ?smooth=1): se dibuja al ritmo de la pantalla y con imán hacia el botón cercano. ?classic=1 lo apaga.
+      if (!CLASSIC_CURSOR && (link.kind === 'cam' || FORCE_SMOOTH)) {
+        if (cursor.tracked && !wasTracked) smoother.reset(cursor.x, cursor.y, cursor.t);
+        wasTracked = cursor.tracked;
+        if (cursor.seq !== seq) {
+          seq = cursor.seq;
+          smoother.push(cursor.x, cursor.y, cursor.t);
+        }
+        const p = smoother.frame(performance.now(), link.sampleAgeMs);
+        x = p.x;
+        y = p.y;
+        const m = cursor.magnet;
+        if (m.k > 0) {
+          x += (m.x - x) * m.k;
+          y += (m.y - y) * m.k;
+        }
+      }
       if (el) {
-        el.style.transform = `translate3d(${cursor.x}px, ${cursor.y}px, 0)`;
+        el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
         el.style.opacity = cursor.tracked ? '1' : '0';
       }
       const r = ring.current;
