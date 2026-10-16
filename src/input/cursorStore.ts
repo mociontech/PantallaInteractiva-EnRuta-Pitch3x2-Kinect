@@ -27,6 +27,17 @@ export const link = {
   /** Cámara: velocidad real del modelo (fotogramas procesados por segundo y ms por fotograma). */
   detectFps: 0,
   detectMs: 0,
+  /** Delegado real del modelo ('GPU' o 'CPU') y medidas del recorrido de cada muestra (para ?debug=1). */
+  delegate: '',
+  camFps: 0,
+  /** ms entre que la cámara captura el fotograma y la app lo recibe; edad de la muestra cuando mueve el cursor. */
+  camLatencyMs: 0,
+  sampleAgeMs: 0,
+  /** Ancho de hombros en px de imagen y amplificación (px de pantalla por cada px de imagen: lo que multiplica el ruido del modelo). */
+  shoulderPx: 0,
+  gain: 0,
+  /** Temblor medido con la mano casi quieta (desviación en px de pantalla). */
+  jitterPx: 0,
 };
 
 export type GateState = 'none' | 'closer' | 'back' | 'left' | 'right' | 'ok';

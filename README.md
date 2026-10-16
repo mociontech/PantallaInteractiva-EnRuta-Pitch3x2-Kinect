@@ -42,8 +42,11 @@ Configuración en un archivo `.env` (ver `.env.example`).
 ### Pared en modo kiosko (Chrome)
 
 ```
-chrome.exe --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required http://localhost:3001/
+chrome.exe --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --force_high_performance_gpu --user-data-dir="%LOCALAPPDATA%\EnRutaPared" http://localhost:3001/
 ```
+
+Las dos últimas opciones importan para el cursor (ver "Latencia y temblor del cursor"): `--force_high_performance_gpu` hace que el modelo de la cámara corra en la GPU potente
+y no en la integrada, y `--user-data-dir` con una carpeta fija conserva la caché de la GPU entre arranques (con un perfil nuevo el seguimiento tarda ~18 s en arrancar; con el mismo, ~3 s).
 
 La pared debe abrirse en `localhost` (la cámara exige un contexto seguro). La tablet no usa cámara: basta HTTP por la red local.
 En la tablet, bloquéala en el navegador a pantalla completa (Android: fijar pantalla o Chrome en modo kiosko; iPad: Acceso guiado).
@@ -150,6 +153,28 @@ La tablet muestra la autorización de tratamiento de datos antes de registrar a 
 `?input=cam` (por defecto en producción). Solo controla a **una persona**: la primera que levanta y sostiene la mano derecha queda bloqueada;
 el resto se ignora. Se libera si baja la mano 4 s o desaparece 1,5 s. Calibración: tecla `C` en la pantalla de inicio de la pared (`Esc` para salir);
 detalles y valores ajustables en `MEDIAPIPE` (`src/config/experience.ts`). Con `?debug=1` aparece la vista de la cámara con todas las personas detectadas.
+
+### Latencia y temblor del cursor (análisis)
+
+Medido en esta máquina (portátil i7-11370H con GPU Intel Iris Xe + NVIDIA RTX 3050 Ti), con un video de una persona que se mueve con un desplazamiento conocido
+(así se separa el ruido del modelo de la hora de captura). Sin cámara física conectada; los números con la cámara real se leen en `?debug=1`.
+
+| Qué | Medido |
+|---|---|
+| Fotogramas del modelo por segundo (persona cerca, 720p) | 15–25 con la GPU Intel; 25–28 con la NVIDIA (la cámara entrega 30) |
+| Tiempo del modelo por fotograma | 20–55 ms con la GPU Intel; 17–42 ms con la NVIDIA (varía mucho con la carga del PC) |
+| `numPoses: 1` frente a `3` | ~35 % más rápido (pero con 1 la detección puede elegir a un transeúnte) |
+| Modelo `heavy` frente a `full` | −25 % de temblor; con la NVIDIA cuesta casi lo mismo; con la Intel, +60 % de tiempo |
+| Arranque del seguimiento | ~18 s la primera vez con un perfil de navegador nuevo; ~3 s con el mismo perfil |
+| Ruido del modelo en la muñeca (persona cerca, 720p) | ~4 px de imagen → ×4,1 de amplificación → **~19 px de pantalla (3 cm en la pared de 3 m)** |
+
+Por qué hay lag *y* temblor: el temblor del modelo se multiplica por `1920 / (ancho de hombros en px × reachWidth)` al pasar a la pantalla (más lejos = hombros más
+pequeños = más amplificación), y filtrarlo cuesta retardo. Con ese ruido, el filtro actual deja ~10 px de temblor (persona cerca) y ~26 px (lejos) con ~80 ms de retardo;
+bajar el temblor a ~5 px cuesta ~130–140 ms de retardo. No hay un ajuste del filtro que arregle ambos: hay que bajar el ruido en el origen (GPU potente, modelo `heavy`,
+pararse a la distancia de la calibración) y entregar más muestras por segundo.
+
+Cada muestra se procesa al llegar el fotograma (`requestVideoFrameCallback`) y el filtro usa la hora real de captura. Con `?debug=1` la pared muestra cámara (fps, retraso hasta la app),
+delegado real del modelo (GPU/CPU), edad de la muestra, ancho de hombros, ganancia y temblor con la mano quieta.
 
 ### Rendimiento y estabilidad del cursor
 

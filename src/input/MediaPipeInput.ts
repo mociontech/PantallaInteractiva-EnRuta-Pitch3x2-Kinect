@@ -94,6 +94,12 @@ export class MediaPipeInput implements InputProvider {
   private useWorker = new URLSearchParams(window.location.search).get('worker') !== '0';
   private worker: Worker | null = null;
   private inflight = false;
+  /** Medidores: fotogramas de cámara por segundo y salida reciente del cursor (para el temblor). */
+  private camFrames = 0;
+  private camSince = 0;
+  private vfc = 0;
+  private lastFilterT = 0;
+  private recent: Array<{ x: number; y: number }> = [];
 
   private onKey = (e: KeyboardEvent): void => {
     const step = 0.1;
@@ -136,7 +142,7 @@ export class MediaPipeInput implements InputProvider {
       if (this.showPreview) this.mountPreview();
       window.addEventListener('keydown', this.onKey);
       link.status = 'open';
-      this.loop();
+      this.startFrameLoop();
     } catch (err) {
       console.error('[MediaPipeInput]', err);
       link.status = 'closed';
@@ -178,6 +184,7 @@ export class MediaPipeInput implements InputProvider {
 
   private async startMainLandmarker(): Promise<void> {
     const fileset = await FilesetResolver.forVisionTasks(MEDIAPIPE.wasmPath);
+    link.delegate = 'GPU (hilo principal)';
     this.landmarker = await PoseLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: MEDIAPIPE.modelPath, delegate: 'GPU' },
       runningMode: 'VIDEO',
@@ -208,10 +215,11 @@ export class MediaPipeInput implements InputProvider {
         const m = ev.data;
         if (m.t === 'ready') {
           window.clearTimeout(timer);
+          link.delegate = (m as { delegate?: string }).delegate ?? 'GPU';
           resolve();
         } else if (m.t === 'result') {
           this.inflight = false;
-          this.onResult(m.landmarks ?? [], m.ms ?? 0);
+          this.onResult(m.landmarks ?? [], m.ms ?? 0, m.ts);
         } else if (m.t === 'error') {
           window.clearTimeout(timer);
           if (!this.video) {
@@ -242,6 +250,9 @@ export class MediaPipeInput implements InputProvider {
   stop(): void {
     this.stopped = true;
     cancelAnimationFrame(this.raf);
+    const vv = this.video as (HTMLVideoElement & { cancelVideoFrameCallback?: (h: number) => void }) | null;
+    if (this.vfc && vv?.cancelVideoFrameCallback) vv.cancelVideoFrameCallback(this.vfc);
+    this.vfc = 0;
     window.removeEventListener('keydown', this.onKey);
     this.stream?.getTracks().forEach((t) => t.stop());
     this.dropWorker();
@@ -430,19 +441,48 @@ export class MediaPipeInput implements InputProvider {
     }
   }
 
-  private loop = (): void => {
-    if (this.stopped) return;
-    this.raf = requestAnimationFrame(this.loop);
-    const v = this.video;
-    if (!v || v.readyState < 2 || v.currentTime === this.lastVideoTime) return;
+  /**
+   * Procesa cada fotograma EN CUANTO la cámara lo entrega (requestVideoFrameCallback). Antes se revisaba con un temporizador
+   * de pantalla (rAF): eso añadía de 0 a 1 refresco de espera y podía perder fotogramas. Sin soporte, cae al método anterior.
+   */
+  private startFrameLoop(): void {
+    const v = this.video as (HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: (now: number, md: { captureTime?: number }) => void) => number;
+    }) | null;
+    if (!v) return;
+    if (typeof v.requestVideoFrameCallback !== 'function') {
+      this.loop();
+      return;
+    }
+    const cb = (now: number, md: { captureTime?: number }): void => {
+      if (this.stopped || !this.video) return;
+      this.vfc = v.requestVideoFrameCallback!(cb);
+      this.camFrames++;
+      if (now - this.camSince >= 1000) {
+        link.camFps = Math.round((this.camFrames * 1000) / (now - this.camSince));
+        this.camFrames = 0;
+        this.camSince = now;
+      }
+      const capture = typeof md.captureTime === 'number' ? md.captureTime : undefined;
+      if (capture !== undefined) {
+        const lat = Math.max(0, performance.now() - capture);
+        link.camLatencyMs = link.camLatencyMs === 0 ? lat : link.camLatencyMs * 0.9 + lat * 0.1;
+      }
+      this.dispatchFrame(capture);
+    };
+    this.vfc = v.requestVideoFrameCallback(cb);
+  }
 
+  /** Envía el fotograma actual al modelo (worker o hilo principal). `capture` = hora real de captura (ms), si el driver la informa. */
+  private dispatchFrame(capture?: number): void {
+    const v = this.video;
+    if (!v || v.readyState < 2) return;
+    const ts = capture ?? performance.now();
     if (this.worker) {
-      // Un fotograma a la vez: si el worker sigue ocupado se espera (no se acumula cola, así la latencia no crece).
+      // Un fotograma a la vez: si el worker sigue ocupado se descarta este (así la latencia no crece con una cola).
       if (this.inflight) return;
-      this.lastVideoTime = v.currentTime;
       this.inflight = true;
       const w = this.worker;
-      const ts = performance.now();
       createImageBitmap(v)
         .then((bitmap) => w.postMessage({ t: 'frame', bitmap, ts }, [bitmap]))
         .catch(() => {
@@ -450,20 +490,29 @@ export class MediaPipeInput implements InputProvider {
         });
       return;
     }
-
     const lm = this.landmarker;
     if (!lm) return;
-    this.lastVideoTime = v.currentTime;
     const t0 = performance.now();
-    const result = lm.detectForVideo(v, t0);
-    this.onResult(result.landmarks, performance.now() - t0);
+    const result = lm.detectForVideo(v, Math.max(ts, this.lastFilterT + 1));
+    this.onResult(result.landmarks, performance.now() - t0, ts);
+  }
+
+  private loop = (): void => {
+    if (this.stopped) return;
+    this.raf = requestAnimationFrame(this.loop);
+    const v = this.video;
+    if (!v || v.readyState < 2 || v.currentTime === this.lastVideoTime) return;
+
+    this.lastVideoTime = v.currentTime;
+    this.dispatchFrame();
   };
 
   /** Procesa un resultado del modelo (venga del worker o del hilo principal): selección de usuario, mano, filtro y cursor. */
-  private onResult(landmarks: NormalizedLandmark[][], spent: number): void {
+  private onResult(landmarks: NormalizedLandmark[][], spent: number, sampleTs?: number): void {
     const v = this.video;
     if (this.stopped || !v) return;
     const now = performance.now();
+    if (sampleTs !== undefined) link.sampleAgeMs = link.sampleAgeMs === 0 ? now - sampleTs : link.sampleAgeMs * 0.9 + (now - sampleTs) * 0.1;
     link.detectMs = link.detectMs === 0 ? spent : link.detectMs * 0.9 + spent * 0.1;
     this.frames++;
     if (now - this.fpsSince >= 1000) {
@@ -492,6 +541,8 @@ export class MediaPipeInput implements InputProvider {
       const h = this.handPoint(lms, aspect);
       // Espejo en X; Y escalada a "unidades de ancho"; ambas en anchos de hombro desde el hombro derecho.
       const ref = this.smoothRef(rs, S, now);
+      link.shoulderPx = ref.S * v.videoWidth;
+      link.gain = STAGE.width / Math.max(1, link.shoulderPx * calibration.reachWidth);
       const u = (ref.x - h.x) / ref.S;
       const vv = ((h.y - ref.y) * aspect) / ref.S;
       // Con la mano cerca de la cara el modelo a veces salta: un salto imposible entre fotogramas se ignora.
@@ -532,8 +583,11 @@ export class MediaPipeInput implements InputProvider {
         this.fx.reset();
         this.fy.reset();
       }
-      const fx = this.fx.filter(hand.x, now);
-      const fy = this.fy.filter(hand.y, now);
+      // El filtro usa la hora real de captura del fotograma (regular) y no la de llegada del resultado (irregular): su derivada es menos ruidosa.
+      const tf = sampleTs !== undefined ? Math.max(sampleTs, this.lastFilterT + 1) : Math.max(now, this.lastFilterT + 1);
+      this.lastFilterT = tf;
+      const fx = this.fx.filter(hand.x, tf);
+      const fy = this.fy.filter(hand.y, tf);
       if (!this.tracked) {
         this.outX = fx;
         this.outY = fy;
@@ -555,6 +609,24 @@ export class MediaPipeInput implements InputProvider {
       this.tracked = false;
     }
     pushSample({ x: this.lastX, y: this.lastY, tracked: this.tracked });
+
+    // Medidor (?debug=1): temblor visible con la mano casi quieta, en px de pantalla.
+    if (this.tracked) {
+      this.recent.push({ x: this.lastX * STAGE.width, y: this.lastY * STAGE.height });
+      if (this.recent.length > 24) this.recent.shift();
+      if (this.recent.length >= 12) {
+        const n = this.recent.length;
+        const mx = this.recent.reduce((a, q) => a + q.x, 0) / n;
+        const my = this.recent.reduce((a, q) => a + q.y, 0) / n;
+        const spread = Math.max(...this.recent.map((q) => Math.hypot(q.x - mx, q.y - my)));
+        if (spread < 90) {
+          const sd = Math.sqrt(this.recent.reduce((a, q) => a + (q.x - mx) ** 2 + (q.y - my) ** 2, 0) / n);
+          link.jitterPx = link.jitterPx === 0 ? sd : link.jitterPx * 0.8 + sd * 0.2;
+        }
+      }
+    } else {
+      this.recent = [];
+    }
 
     const surface = gate.canvas ?? this.preview;
     if (surface) this.drawPreview(surface, v, people, user);

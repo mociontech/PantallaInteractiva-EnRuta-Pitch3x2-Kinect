@@ -74,6 +74,14 @@ export function DebugOverlay() {
       <div style={{ position: 'absolute', left: 8, top: 8, background: '#000c', padding: 8, fontSize: 20, lineHeight: 1.3 }}>
         {snap.fps} fps · input {link.kind} · ws {snap.status}{link.kind === 'cam' ? ` · personas ${link.people} · usuario ${link.lock} · IA ${link.detectFps} fps (${Math.round(link.detectMs)} ms)` : ''}
         <br />
+        {link.kind === 'cam' && (
+          <>
+            cámara {link.camFps} fps · llega {Math.round(link.camLatencyMs)} ms tarde · IA {link.delegate || '?'} · la muestra mueve el cursor con {Math.round(link.sampleAgeMs)} ms de edad
+            <br />
+            hombros {Math.round(link.shoulderPx)} px · ganancia ×{link.gain.toFixed(1)} · temblor con la mano quieta {link.jitterPx.toFixed(1)} px
+            <br />
+          </>
+        )}
         pantalla {state.screen} · cursor {snap.x},{snap.y} {snap.tracked ? '' : '(sin tracking)'} · dwell {INPUT.dwellSource}
         <br />
         teclas: 1–9,0 pantallas · R reset · U desbloquear · T tracked (mouse) · flechas y +/- calibran la zona (cam)
